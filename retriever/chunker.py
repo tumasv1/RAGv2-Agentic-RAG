@@ -124,6 +124,31 @@ def _normalize_wikilinks(text: str) -> str:
     return WIKILINK_PATTERN.sub(_replace, text)
 
 
+def _build_context_prefix(meta: ChunkMetadata) -> str:
+    """
+    Контекстный заголовок из метаданных для включения в page_content.
+
+    Зачем: имя файла и иерархия заголовков несут семантику, которую
+    нужно проиндексировать. Без этого запрос "Галаева" не найдёт чанки
+    из файла "Галаева Елена.md", если фамилия не упоминается в тексте.
+
+    Формат (только непустые поля):
+        Файл: Галаева Елена
+        Путь: Контакты > Семья > Дети
+        Тип: employee
+        Теги: команда, HR
+        ---
+    """
+    lines = [f"Файл: {meta.file_name}"]
+    if meta.heading_hierarchy:
+        lines.append(f"Путь: {' > '.join(meta.heading_hierarchy)}")
+    if meta.type:
+        lines.append(f"Тип: {meta.type}")
+    if meta.tags:
+        lines.append(f"Теги: {', '.join(meta.tags)}")
+    return "\n".join(lines) + "\n---"
+
+
 def _generate_chunk_id(file_path: str, index: int) -> str:
     """
     Генерирует стабильный ID чанка.
@@ -235,6 +260,13 @@ def chunk_file(file_path: Path) -> list[tuple[str, ChunkMetadata]]:
             tags=fm_tags,
             extra_metadata=extra,
         )
+
+        # обогащаем page_content контекстным префиксом (имя файла, путь, тип, теги)
+        # это нужно для поиска: dense и BM25 смогут матчить по метаданным
+        if cfg.enrich_content:
+            prefix = _build_context_prefix(meta)
+            chunk_text = f"{prefix}\n{chunk_text}"
+
         results.append((chunk_text, meta))
 
     return results

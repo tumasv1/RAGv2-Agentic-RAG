@@ -339,6 +339,19 @@ def run_indexing(force: bool = False) -> dict[str, int]:
 
     # инициализируем Qdrant (при первом запуске создаёт коллекцию)
     store = get_qdrant_store()
+
+    # создаём payload-индексы для фильтрации по метаданным
+    # если индексы уже есть — Qdrant просто проигнорирует (не упадёт)
+    for _field in ("metadata.type", "metadata.file_name", "metadata.tags"):
+        try:
+            store.client.create_payload_index(
+                collection_name=cfg.qdrant.collection_name,
+                field_name=_field,
+                field_schema=qmodels.PayloadSchemaType.KEYWORD,
+            )
+        except Exception:
+            pass
+
     total_chunks = 0
 
     # --- Удаляем старые чанки ---

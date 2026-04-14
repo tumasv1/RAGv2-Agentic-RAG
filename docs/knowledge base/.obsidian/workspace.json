@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "adr/0003-search-bm25-terms-and-reranker.md",
+                "file": "adr/0004-contextual-chunk-enrichment.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "0003-search-bm25-terms-and-reranker"
+              "title": "0004-contextual-chunk-enrichment"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "adr/0003-search-bm25-terms-and-reranker.md",
+                "file": "adr/0004-contextual-chunk-enrichment.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Обратные ссылки для 0003-search-bm25-terms-and-reranker"
+              "title": "Обратные ссылки для 0004-contextual-chunk-enrichment"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "adr/0003-search-bm25-terms-and-reranker.md",
+                "file": "adr/0004-contextual-chunk-enrichment.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Исходящие ссылки из 0003-search-bm25-terms-and-reranker"
+              "title": "Исходящие ссылки из 0004-contextual-chunk-enrichment"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "adr/0003-search-bm25-terms-and-reranker.md",
+                "file": "adr/0004-contextual-chunk-enrichment.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Структура 0003-search-bm25-terms-and-reranker"
+              "title": "Структура 0004-contextual-chunk-enrichment"
             }
           }
         ]
@@ -185,11 +185,12 @@
   },
   "active": "1bbfbce9fe925475",
   "lastOpenFiles": [
-    "plan/Фаза 1. Retriever v2.0.md",
     "adr/0003-search-bm25-terms-and-reranker.md",
+    "adr/0004-contextual-chunk-enrichment.md",
+    "adr/0002-infrastructure-decisions.md",
+    "plan/Фаза 1. Retriever v2.0.md",
     "plan/Фаза 1. Retriever v1.0.md",
     "adr/0001-architecture-overview.md",
-    "adr/0002-infrastructure-decisions.md",
     "plan/High-level plan.md",
     "plan/Фаза 0.md",
     "RAG v2 requirements.md",
