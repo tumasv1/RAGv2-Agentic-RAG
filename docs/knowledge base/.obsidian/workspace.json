@@ -1,0 +1,199 @@
+{
+  "main": {
+    "id": "11a18bae8b643ae4",
+    "type": "split",
+    "children": [
+      {
+        "id": "c377e3f44d87abda",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1bbfbce9fe925475",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "adr/0003-search-bm25-terms-and-reranker.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "0003-search-bm25-terms-and-reranker"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "8a49e072c1f77345",
+    "type": "split",
+    "children": [
+      {
+        "id": "1beadcda26fc6c6e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9e2efaebfa06ee49",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "e55c55704d4a7897",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "700e5b614d1c9c51",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "2019fd947f10c79f",
+    "type": "split",
+    "children": [
+      {
+        "id": "65afe7e94940ec07",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "31f3f75fcaac9c1c",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "adr/0003-search-bm25-terms-and-reranker.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки для 0003-search-bm25-terms-and-reranker"
+            }
+          },
+          {
+            "id": "4d8f6e35ebcd885b",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "adr/0003-search-bm25-terms-and-reranker.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки из 0003-search-bm25-terms-and-reranker"
+            }
+          },
+          {
+            "id": "940704f1f420afd6",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "566407911a31a7f8",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Все свойства"
+            }
+          },
+          {
+            "id": "d7daa6c23f9f10e8",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "adr/0003-search-bm25-terms-and-reranker.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура 0003-search-bm25-terms-and-reranker"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "bases:Создать новую базу": false
+    }
+  },
+  "active": "1bbfbce9fe925475",
+  "lastOpenFiles": [
+    "plan/Фаза 1. Retriever v2.0.md",
+    "adr/0003-search-bm25-terms-and-reranker.md",
+    "plan/Фаза 1. Retriever v1.0.md",
+    "adr/0001-architecture-overview.md",
+    "adr/0002-infrastructure-decisions.md",
+    "plan/High-level plan.md",
+    "plan/Фаза 0.md",
+    "RAG v2 requirements.md",
+    "adr/0000-template.md",
+    "plan"
+  ]
+}

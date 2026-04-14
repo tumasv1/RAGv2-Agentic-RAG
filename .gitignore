@@ -1,0 +1,30 @@
+# секреты
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Qdrant (локальные данные)
+qdrant_data/
+
+# Прочие файлы
+other/
+#Claude
+.claude/
+CLAUDE.md
