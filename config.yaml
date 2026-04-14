@@ -1,0 +1,42 @@
+# — Настройки LLM —
+llm:
+  temperature: 0.7
+  max_tokens: 2000
+  request_timeout: 60          # таймаут для LangChain ChatOpenAI (секунды)
+
+# — Настройки поиска —
+search:
+  max_chunks: 10                           # жёсткий лимит чанков для LLM
+  fetch_k: 40                              # кандидатов из каждой ветки
+  dense_score_threshold: 0.0               # cosine (0–1), подбирается по RAGAS
+  sparse_score_threshold: 0.0              # BM25, подбирается по RAGAS
+  reranker_score_threshold: 0.0            # cross-encoder, подбирается по RAGAS
+  use_reranking: false                     # вкл/выкл реранкер
+  reranker_model: "jinaai/jina-reranker-v2-base-multilingual"  # мультиязычный cross-encoder (ONNX)
+
+# — Настройки индексации —
+ingest:
+  chunk_size: 1700             # максимальный размер чанка (символов)
+  chunk_overlap: 200           # перекрытие между чанками
+  exclude_folders:             # папки, которые пропускаем при сканировании vault
+    - "04. Шаблоны"
+    - "97. Вложения"
+    - "98. Ingest"
+    - "99. Правила"
+  exclude_filenames:           # файлы, которые пропускаем
+    - "00_HUB.md"
+
+# — Настройки агента —
+agent:
+  max_iterations: 5            # guardrail — максимум итераций на запрос
+
+# — Настройки эмбеддингов —
+embeddings:
+  model_name: "intfloat/multilingual-e5-large"   # или BAAI/bge-m3
+  device: "cpu"
+  normalize: true
+
+# — Qdrant —
+qdrant:
+  path: "qdrant_data"          # путь к локальному хранилищу (embedded mode)
+  collection_name: "obsidian_notes"
