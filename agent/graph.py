@@ -37,6 +37,7 @@ from agent.nodes import (
     check_iteration_limit,
 )
 from agent.prompts import SYSTEM_PROMPT
+from agent.tracer import AgentTracer, DebugTrace
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +183,96 @@ def ask(
         iterations=iterations,
         chunks_used=chunks_used,
     )
+
+
+# --- отладочные функции ---
+
+def ask_debug(
+    question: str,
+    thread_id: str | None = None,
+) -> tuple[AgentResponse, DebugTrace]:
+    """
+    Как ask(), но дополнительно возвращает полный трейс для анализа.
+
+    Args:
+        question: вопрос пользователя.
+        thread_id: идентификатор сессии (None = новая сессия).
+
+    Returns:
+        (AgentResponse, DebugTrace) — ответ + детальный трейс.
+
+    Пример:
+        response, trace = ask_debug("Что такое Zettelkasten?")
+        trace.display()
+    """
+    if thread_id is None:
+        thread_id = str(uuid4())
+
+    graph = get_graph()
+    cfg = get_config()
+    tracer = AgentTracer()
+
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": cfg.agent.max_iterations * 2 + 5,
+        "callbacks": [tracer],
+    }
+
+    start_time = time.time()
+
+    try:
+        result = graph.invoke(
+            {
+                "messages": [
+                    SystemMessage(content=SYSTEM_PROMPT),
+                    ("user", question),
+                ],
+                "iteration_count": 0,
+            },
+            config=config,
+        )
+    except Exception as e:
+        logger.error("Ошибка графа агента (debug): %s", e, exc_info=True)
+        error_response = AgentResponse(
+            answer=f"Произошла ошибка при обработке запроса: {e}",
+            sources=[],
+            confidence=0.0,
+            has_answer=False,
+        )
+        trace = tracer.build_trace(question, thread_id, error_response, 0.0)
+        return error_response, trace
+
+    total_latency_ms = (time.time() - start_time) * 1000
+    iterations = result.get("iteration_count", 0)
+
+    last_message = result["messages"][-1]
+    answer_text = last_message.content if hasattr(last_message, "content") else str(last_message)
+
+    sources = _extract_sources(answer_text)
+    chunks_used = _count_chunks(result["messages"])
+
+    response = AgentResponse(
+        answer=answer_text,
+        sources=sources,
+        confidence=0.8 if sources else 0.0,
+        has_answer=bool(sources),
+        iterations=iterations,
+        chunks_used=chunks_used,
+    )
+    trace = tracer.build_trace(question, thread_id, response, total_latency_ms)
+    return response, trace
+
+
+def get_mermaid() -> str:
+    """
+    Возвращает граф агента как Mermaid-строку для визуализации.
+
+    Вставь вывод на https://mermaid.live/ или в Jupyter:
+
+        from IPython.display import display, Markdown
+        display(Markdown(f"```mermaid\\n{get_mermaid()}\\n```"))
+    """
+    return get_graph().get_graph().draw_mermaid()
 
 
 # --- вспомогательные функции ---
