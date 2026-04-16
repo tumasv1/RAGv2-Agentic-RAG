@@ -141,7 +141,7 @@ def _build_context_prefix(meta: ChunkMetadata) -> str:
     """
     lines = [f"Файл: {meta.file_name}"]
     if meta.heading_hierarchy:
-        lines.append(f"Путь: {' > '.join(meta.heading_hierarchy)}")
+        lines.append(f"Иерархия заголовков: {' > '.join(meta.heading_hierarchy)}")
     if meta.type:
         lines.append(f"Тип: {meta.type}")
     if meta.tags:
@@ -252,7 +252,7 @@ def chunk_file(file_path: Path) -> list[tuple[str, ChunkMetadata]]:
         meta = ChunkMetadata(
             chunk_id=_generate_chunk_id(file_path_str, i),
             file_path=file_path_str,
-            file_name=file_path.stem,
+            file_name=file_path.name,
             section_header=section_header,
             heading_hierarchy=heading_hierarchy,
             type=fm_type,

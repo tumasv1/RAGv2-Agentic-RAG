@@ -326,12 +326,30 @@ class AgentTracer(BaseCallbackHandler):
         total_latency_ms: float,
     ) -> DebugTrace:
         """Собирает финальный DebugTrace из накопленных событий."""
+        llm_calls = list(self._llm_events)
+        tool_calls = sorted(self._tool_events, key=lambda t: t.order)
+
+        # on_chain_start не стреляет в этой версии LangGraph → определяем ноду
+        # постфактум по признакам ответа (надёжно для нашего конкретного графа):
+        #   - есть tool_calls в ответе           → agent
+        #   - последний вызов, нет tool_calls,
+        #     до этого были вызовы инструментов  → generate
+        #   - иначе                              → agent (ответил напрямую)
+        had_tools = bool(tool_calls)
+        for i, llm in enumerate(llm_calls):
+            if llm.tool_calls:
+                llm.node = "agent"
+            elif i == len(llm_calls) - 1 and had_tools:
+                llm.node = "generate"
+            else:
+                llm.node = "agent"
+
         return DebugTrace(
             question=question,
             thread_id=thread_id,
             total_latency_ms=total_latency_ms,
-            llm_calls=list(self._llm_events),
-            tool_calls=sorted(self._tool_events, key=lambda t: t.order),
+            llm_calls=llm_calls,
+            tool_calls=tool_calls,
             final_answer=response.answer,
             sources=response.sources,
             iterations=response.iterations,

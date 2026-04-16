@@ -6,7 +6,7 @@ llm:
 
 # — Настройки поиска —
 search:
-  max_chunks: 10                           # жёсткий лимит чанков для LLM
+  max_chunks: 4                           # жёсткий лимит чанков для LLM
   fetch_k: 40                              # кандидатов из каждой ветки
   dense_score_threshold: 0.0               # cosine (0–1), подбирается по RAGAS
   sparse_score_threshold: 0.0              # BM25, подбирается по RAGAS

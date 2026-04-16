@@ -11,12 +11,16 @@
     tools = get_tools()  # список для bind_tools() и ToolNode
 """
 
+import re
 from datetime import datetime
 
 from langchain_core.tools import tool
 
 from core.types import SearchResult
 from retriever.search import search
+
+# строка "Файл: ..." из контекстного префикса — дублирует заголовок [N] filename
+_FILE_LINE_RE = re.compile(r"^Файл: [^\n]+\n", re.MULTILINE)
 
 
 @tool
@@ -38,13 +42,15 @@ def search_knowledge_base(query: str, bm25_terms: str | None = None) -> str:
         return "Поиск не дал результатов. Попробуй переформулировать запрос."
 
     # форматируем чанки для LLM — номер, файл, секция, score, текст
+    # "Файл: ..." убираем из тела чанка — имя файла уже есть в заголовке
     chunks = []
     for i, r in enumerate(results, 1):
         header = f"[{i}] {r.metadata.file_name}"
         if r.metadata.section_header:
             header += f" > {r.metadata.section_header}"
         header += f" (score: {r.score:.3f})"
-        chunks.append(f"{header}\n{r.content}")
+        content = _FILE_LINE_RE.sub("", r.content, count=1)
+        chunks.append(f"{header}\n{content}")
 
     return "\n\n---\n\n".join(chunks)
 
