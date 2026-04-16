@@ -28,3 +28,4 @@ other/
 #Claude
 .claude/
 CLAUDE.md
+.ruff_cache/
