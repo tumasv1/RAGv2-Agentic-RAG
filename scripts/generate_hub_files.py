@@ -4,7 +4,6 @@
 HUB файлы создаются на корневом уровне и уровне +1 с рекурсивным отображением всего содержимого.
 """
 
-import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -42,7 +41,6 @@ def get_folder_emoji(folder_name: str) -> str:
         "Планирование": "📋",
         "Путешествия": "✈️",
         "Родительство": "🤰",
-        "Вложения": "📎",
     }
     for key, emoji in emoji_map.items():
         if key.lower() in folder_name.lower():
@@ -169,10 +167,28 @@ def generate_hub(hub_path: Path, folder_path: Path, title: str, description: str
     hub_path.write_text(content, encoding='utf-8')
     print(f"  ✓ Создано: {hub_path.name} ({total_files} файлов)")
 
-def main():
-    base_path = Path("/Users/mikhail/Documents/Obsidian/Основное")
-    
-    # Список HUB файлов для генерации
+def main(vault_path: str | None = None) -> str:
+    """
+    Генерирует HUB-заметки для всех основных папок.
+
+    Args:
+        vault_path: путь к vault Obsidian. Если None — берём из конфига
+                    или дефолтный хардкод.
+
+    Returns:
+        Строка-отчёт о результатах генерации.
+    """
+    if vault_path is None:
+        # пробуем взять из конфига, если он доступен
+        try:
+            from core.config import get_config
+            vault_path = get_config().obsidian_vault
+        except Exception:
+            vault_path = "/Users/mikhail/Documents/Obsidian/Основное"
+
+    base_path = Path(vault_path)
+
+    # список HUB файлов для генерации
     hubs = [
         {
             "path": base_path / "01. Private" / "00_HUB.md",
@@ -199,12 +215,13 @@ def main():
             "description": "Архивные материалы"
         }
     ]
-    
+
+    results = []
     print("=" * 60)
     print("Генерация HUB файлов")
     print("=" * 60)
     print()
-    
+
     for hub in hubs:
         generate_hub(
             Path(hub["path"]),
@@ -212,11 +229,14 @@ def main():
             hub["title"],
             hub["description"]
         )
+        results.append(hub["title"])
         print()
-    
+
     print("=" * 60)
     print("✓ Все HUB файлы успешно обновлены!")
     print("=" * 60)
+
+    return f"HUB-заметки обновлены: {', '.join(results)}"
 
 if __name__ == "__main__":
     main()
