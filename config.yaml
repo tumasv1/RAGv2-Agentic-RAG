@@ -6,7 +6,7 @@ llm:
 
 # — Настройки поиска —
 search:
-  max_chunks: 10                           # жёсткий лимит чанков для LLM
+  max_chunks: 4                           # жёсткий лимит чанков для LLM
   fetch_k: 40                              # кандидатов из каждой ветки
   dense_score_threshold: 0.0               # cosine (0–1), подбирается по RAGAS
   sparse_score_threshold: 0.0              # BM25, подбирается по RAGAS
@@ -41,3 +41,9 @@ embeddings:
 qdrant:
   path: "qdrant_data"          # путь к локальному хранилищу (embedded mode)
   collection_name: "obsidian_notes"
+
+# — Оценка качества —
+eval:
+  report_dir: "reports"              # директория для markdown-отчётов
+  recall_warn_threshold: 0.7         # порог для диагностики context_recall
+  chunk_preview_len: 150             # символов превью чанка в отчёте
