@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "adr/0005-agent-graph-architecture.md",
+                "file": "plan/Фаза 3. Evaluation.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "0005-agent-graph-architecture"
+              "title": "Фаза 3. Evaluation"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "adr/0005-agent-graph-architecture.md",
+                "file": "plan/Фаза 3. Evaluation.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Обратные ссылки для 0005-agent-graph-architecture"
+              "title": "Обратные ссылки для Фаза 3. Evaluation"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "adr/0005-agent-graph-architecture.md",
+                "file": "plan/Фаза 3. Evaluation.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Исходящие ссылки из 0005-agent-graph-architecture"
+              "title": "Исходящие ссылки из Фаза 3. Evaluation"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "adr/0005-agent-graph-architecture.md",
+                "file": "plan/Фаза 3. Evaluation.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Структура 0005-agent-graph-architecture"
+              "title": "Структура Фаза 3. Evaluation"
             }
           }
         ],
@@ -185,10 +185,12 @@
   },
   "active": "1bbfbce9fe925475",
   "lastOpenFiles": [
-    "plan/Фаза 2. Agent.md",
-    "adr/0005-agent-graph-architecture.md",
+    "adr/0006-eval-module-architecture.md",
     "plan/High-level plan.md",
+    "plan/Фаза 3. Evaluation.md",
     "plan/Фаза 0.md",
+    "adr/0005-agent-graph-architecture.md",
+    "plan/Фаза 2. Agent.md",
     "adr/0004-contextual-chunk-enrichment.md",
     "adr/0003-search-bm25-terms-and-reranker.md",
     "adr/0002-infrastructure-decisions.md",

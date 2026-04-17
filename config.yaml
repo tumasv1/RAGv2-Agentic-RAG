@@ -41,3 +41,9 @@ embeddings:
 qdrant:
   path: "qdrant_data"          # путь к локальному хранилищу (embedded mode)
   collection_name: "obsidian_notes"
+
+# — Оценка качества —
+eval:
+  report_dir: "reports"              # директория для markdown-отчётов
+  recall_warn_threshold: 0.7         # порог для диагностики context_recall
+  chunk_preview_len: 150             # символов превью чанка в отчёте
