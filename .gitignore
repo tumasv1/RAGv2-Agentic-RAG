@@ -28,4 +28,5 @@ other/
 #Claude
 .claude/
 CLAUDE.md
-docs/knowledge base/.obsidian/workspace.json
+.ruff_cache/
+docs/knowledge base/.obsidian/

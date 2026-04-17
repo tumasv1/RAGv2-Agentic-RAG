@@ -1,0 +1,213 @@
+"""
+Прогон golden set через retriever + LLM.
+
+Ядро модуля eval/:
+1. Загружает тест-кейсы из golden_set.yaml
+2. Для каждого вопроса вызывает search() + LLM
+3. Собирает результаты в EvalDataset для RAGAS
+
+Ключевое: eval/ тестирует retriever + LLM напрямую, минуя граф агента.
+Это изолирует оценку retrieval-качества от логики оркестрации.
+
+Использование:
+    from eval.runner import load_golden_set, run_golden_set
+    cases = load_golden_set(n=5)
+    data = run_golden_set(cases)
+    dataset = data.to_ragas_dataset()
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import yaml
+from datasets import Dataset
+from pydantic import BaseModel, Field
+
+from core.llm_client import get_llm
+from core.types import SearchResult
+from retriever.search import search
+
+
+# --- Pydantic-модель для структурированного ответа LLM ---
+
+class LLMAnswer(BaseModel):
+    """Структурированный ответ LLM на вопрос по контексту."""
+    answer: str
+    sources: list[str] = Field(default_factory=list)
+    has_answer: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+# --- Промпт для генерации ответа ---
+# Минимальный: только правила «отвечай по контексту» и формат.
+# Не дублируем системный промпт агента — здесь другой сценарий.
+
+_EVAL_SYSTEM_PROMPT = """\
+Ты — помощник по базе знаний. Ответь на вопрос ТОЛЬКО на основе предоставленного контекста.
+
+Правила:
+- Если в контексте нет информации для ответа, поставь has_answer=false и напиши "Не нашёл ответа в базе знаний."
+- Указывай имена файлов-источников в поле sources (только имена файлов, без пути)
+- Оцени свою уверенность в поле confidence (0.0 — полная неуверенность, 1.0 — полная уверенность)
+"""
+
+
+# --- Вспомогательная структура для деталей чанков ---
+
+@dataclass
+class ChunkInfo:
+    """Детали одного чанка для отчёта."""
+    source: str      # имя файла
+    score: float     # score после retrieval / reranker
+    preview: str     # первые N символов текста
+
+
+# --- Результат прогона ---
+
+@dataclass
+class EvalDataset:
+    """
+    Все данные прогона golden set — для RAGAS и для отчёта.
+
+    to_ragas_dataset() конвертирует в формат, который принимает ragas.evaluate().
+    """
+    questions: list[str] = field(default_factory=list)
+    answers: list[str] = field(default_factory=list)
+    contexts: list[list[str]] = field(default_factory=list)
+    ground_truths: list[str] = field(default_factory=list)
+    chunks_detail: list[list[ChunkInfo]] = field(default_factory=list)
+    has_answers: list[bool] = field(default_factory=list)
+    cases: list[dict] = field(default_factory=list)
+
+    def to_ragas_dataset(self) -> Dataset:
+        """Конвертирует в HuggingFace Dataset для ragas.evaluate()."""
+        return Dataset.from_dict({
+            "question": self.questions,
+            "answer": self.answers,
+            "contexts": self.contexts,
+            "ground_truth": self.ground_truths,
+        })
+
+
+# --- Функции ---
+
+def load_golden_set(path: Path | None = None, n: int | None = None) -> list[dict]:
+    """
+    Загружает тест-кейсы из golden_set.yaml.
+
+    Args:
+        path: путь к YAML (дефолт: eval/golden_set.yaml рядом с этим файлом)
+        n: сколько кейсов взять (дефолт: все)
+
+    Returns:
+        Список словарей с полями: id, question, weight, source, type,
+        reference_answer, reference_docs
+    """
+    if path is None:
+        path = Path(__file__).parent / "golden_set.yaml"
+
+    with open(path, encoding="utf-8") as f:
+        cases = yaml.safe_load(f)
+
+    if n is not None:
+        cases = cases[:n]
+
+    return cases
+
+
+def generate_answer(question: str, contexts: list[str]) -> LLMAnswer:
+    """
+    Генерирует ответ LLM по вопросу и контексту.
+
+    Использует structured output (with_structured_output) —
+    LLM возвращает JSON, Pydantic парсит в LLMAnswer.
+
+    Args:
+        question: вопрос пользователя
+        contexts: список текстов чанков (page_content)
+
+    Returns:
+        LLMAnswer с полями answer, sources, has_answer, confidence
+    """
+    llm = get_llm()
+    structured_llm = llm.with_structured_output(LLMAnswer)
+
+    # собираем контекст — нумерованные чанки
+    context_str = "\n\n---\n\n".join(
+        f"[Чанк {i}]\n{text}" for i, text in enumerate(contexts, 1)
+    )
+
+    messages = [
+        {"role": "system", "content": _EVAL_SYSTEM_PROMPT},
+        {"role": "user", "content": f"Контекст:\n{context_str}\n\nВопрос: {question}"},
+    ]
+
+    return structured_llm.invoke(messages)
+
+
+def run_golden_set(
+    cases: list[dict],
+    search_fn: Callable[[str], list[SearchResult]] | None = None,
+    chunk_preview_len: int = 150,
+) -> EvalDataset:
+    """
+    Прогоняет golden set через retriever + LLM.
+
+    Для каждого тест-кейса:
+    1. search_fn(question) → список чанков
+    2. generate_answer(question, [чанки]) → LLMAnswer
+    3. Собирает в EvalDataset
+
+    Args:
+        cases: тест-кейсы из load_golden_set()
+        search_fn: функция поиска (дефолт: retriever.search.search).
+                   Для compare_splitters можно подставить поиск по временной коллекции.
+        chunk_preview_len: длина превью чанка для отчёта
+
+    Returns:
+        EvalDataset с данными для RAGAS и отчёта
+    """
+    if search_fn is None:
+        search_fn = search
+
+    data = EvalDataset()
+
+    for case in cases:
+        q = case["question"]
+        case_id = case["id"]
+        print(f"\n[{case_id}] {q[:72]}...")
+
+        # 1. поиск
+        results = search_fn(q)
+        context_texts = [r.content for r in results]
+
+        # 2. генерация ответа
+        llm_answer = generate_answer(q, context_texts)
+
+        print(
+            f"    → {len(results)} чанков "
+            f"| has_answer={llm_answer.has_answer} "
+            f"| confidence={llm_answer.confidence:.2f}"
+        )
+
+        # 3. собираем данные
+        data.questions.append(q)
+        data.answers.append(llm_answer.answer)
+        data.contexts.append(context_texts)
+        data.ground_truths.append(case["reference_answer"])
+        data.has_answers.append(llm_answer.has_answer)
+        data.cases.append(case)
+
+        data.chunks_detail.append([
+            ChunkInfo(
+                source=r.metadata.file_name,
+                score=round(r.score, 3),
+                preview=r.content[:chunk_preview_len].replace("\n", " "),
+            )
+            for r in results
+        ])
+
+    return data
