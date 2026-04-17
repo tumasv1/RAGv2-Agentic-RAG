@@ -77,6 +77,13 @@ class QdrantConfig(BaseModel):
     collection_name: str = "obsidian_notes"
 
 
+class EvalConfig(BaseModel):
+    """Настройки модуля оценки качества (eval/)."""
+    report_dir: str = "reports"              # директория для markdown-отчётов
+    recall_warn_threshold: float = 0.7       # порог для диагностики context_recall
+    chunk_preview_len: int = 150             # символов превью чанка в отчёте
+
+
 class AppConfig(BaseModel):
     """
     Главная модель конфигурации.
@@ -98,6 +105,7 @@ class AppConfig(BaseModel):
     agent: AgentConfig = AgentConfig()
     embeddings: EmbeddingsConfig = EmbeddingsConfig()
     qdrant: QdrantConfig = QdrantConfig()
+    eval: EvalConfig = EvalConfig()
 
 
 # --- Определение корня проекта ---
