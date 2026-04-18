@@ -24,34 +24,21 @@ from pathlib import Path
 
 import yaml
 from datasets import Dataset
-from pydantic import BaseModel, Field
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.llm_client import get_llm
 from core.types import SearchResult
 from retriever.search import search
 
 
-# --- Pydantic-модель для структурированного ответа LLM ---
-
-class LLMAnswer(BaseModel):
-    """Структурированный ответ LLM на вопрос по контексту."""
-    answer: str
-    sources: list[str] = Field(default_factory=list)
-    has_answer: bool
-    confidence: float = Field(ge=0.0, le=1.0)
-
-
 # --- Промпт для генерации ответа ---
-# Минимальный: только правила «отвечай по контексту» и формат.
-# Не дублируем системный промпт агента — здесь другой сценарий.
+# Минимальный: только правило «отвечай по контексту».
+# Structured output не используем — plain text надёжнее и дешевле.
 
 _EVAL_SYSTEM_PROMPT = """\
-Ты — помощник по базе знаний. Ответь на вопрос ТОЛЬКО на основе предоставленного контекста.
+Ты — персональный помощник по базе знаний Obsidian. Ответь на вопрос ТОЛЬКО на основе предоставленного контекста.
 
-Правила:
-- Если в контексте нет информации для ответа, поставь has_answer=false и напиши "Не нашёл ответа в базе знаний."
-- Указывай имена файлов-источников в поле sources (только имена файлов, без пути)
-- Оцени свою уверенность в поле confidence (0.0 — полная неуверенность, 1.0 — полная уверенность)
+Если в контексте нет информации для ответа, напиши: "Не нашёл ответа в базе знаний."
 """
 
 
@@ -79,7 +66,7 @@ class EvalDataset:
     contexts: list[list[str]] = field(default_factory=list)
     ground_truths: list[str] = field(default_factory=list)
     chunks_detail: list[list[ChunkInfo]] = field(default_factory=list)
-    has_answers: list[bool] = field(default_factory=list)
+    has_answers: list[bool] = field(default_factory=list)  # False если LLM ответил "Не нашёл ответа в базе знаний"
     cases: list[dict] = field(default_factory=list)
 
     def to_ragas_dataset(self) -> Dataset:
@@ -118,22 +105,21 @@ def load_golden_set(path: Path | None = None, n: int | None = None) -> list[dict
     return cases
 
 
-def generate_answer(question: str, contexts: list[str]) -> LLMAnswer:
+def generate_answer(question: str, contexts: list[str]) -> str:
     """
     Генерирует ответ LLM по вопросу и контексту.
 
-    Использует structured output (with_structured_output) —
-    LLM возвращает JSON, Pydantic парсит в LLMAnswer.
+    Возвращает plain text — проще и надёжнее structured output.
+    has_answer выводится отдельно как bool(contexts).
 
     Args:
         question: вопрос пользователя
         contexts: список текстов чанков (page_content)
 
     Returns:
-        LLMAnswer с полями answer, sources, has_answer, confidence
+        Текст ответа (str)
     """
     llm = get_llm()
-    structured_llm = llm.with_structured_output(LLMAnswer)
 
     # собираем контекст — нумерованные чанки
     context_str = "\n\n---\n\n".join(
@@ -141,11 +127,12 @@ def generate_answer(question: str, contexts: list[str]) -> LLMAnswer:
     )
 
     messages = [
-        {"role": "system", "content": _EVAL_SYSTEM_PROMPT},
-        {"role": "user", "content": f"Контекст:\n{context_str}\n\nВопрос: {question}"},
+        SystemMessage(content=_EVAL_SYSTEM_PROMPT),
+        HumanMessage(content=f"Контекст:\n{context_str}\n\nВопрос: {question}"),
     ]
 
-    return structured_llm.invoke(messages)
+    response = llm.invoke(messages)
+    return response.content
 
 
 def run_golden_set(
@@ -158,8 +145,9 @@ def run_golden_set(
 
     Для каждого тест-кейса:
     1. search_fn(question) → список чанков
-    2. generate_answer(question, [чанки]) → LLMAnswer
-    3. Собирает в EvalDataset
+    2. generate_answer(question, [чанки]) → str
+    3. has_answer = bool(results) — нашёл ли retriever хоть что-то
+    4. Собирает в EvalDataset
 
     Args:
         cases: тест-кейсы из load_golden_set()
@@ -185,20 +173,19 @@ def run_golden_set(
         context_texts = [r.content for r in results]
 
         # 2. генерация ответа
-        llm_answer = generate_answer(q, context_texts)
+        answer = generate_answer(q, context_texts)
 
-        print(
-            f"    → {len(results)} чанков "
-            f"| has_answer={llm_answer.has_answer} "
-            f"| confidence={llm_answer.confidence:.2f}"
-        )
+        # has_answer: False если LLM сам сказал что не нашёл ответа
+        has_answer = "Не нашёл ответа в базе знаний" not in answer
+
+        print(f"    → {len(results)} чанков | has_answer={has_answer}")
 
         # 3. собираем данные
         data.questions.append(q)
-        data.answers.append(llm_answer.answer)
+        data.answers.append(answer)
         data.contexts.append(context_texts)
         data.ground_truths.append(case["reference_answer"])
-        data.has_answers.append(llm_answer.has_answer)
+        data.has_answers.append(has_answer)
         data.cases.append(case)
 
         data.chunks_detail.append([

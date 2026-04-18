@@ -38,8 +38,9 @@ from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
 
 from core.config import get_config, _find_project_root
 from core.types import ChunkMetadata, SearchResult
+from eval.judge import compute_judge_scores, summarize_judge_scores
 from eval.metrics import compute_metrics
-from eval.report import _fmt, _traffic_light
+from eval.report import _fmt, _ragas_traffic_light
 from eval.runner import load_golden_set, run_golden_set
 from retriever.embeddings import get_embeddings
 from retriever.indexer import _find_bm25_model_path, _scan_vault, _index_files
@@ -78,6 +79,7 @@ class StrategyResult:
     index_time: float                  # время индексации (сек)
     avg_metrics: dict[str, float]      # средние RAGAS метрики
     traffic: str                       # светофор по средним
+    judge_avg: float | None = None     # средняя оценка LLM-судьи (0-3)
 
 
 # --- Работа с временными коллекциями ---
@@ -243,7 +245,12 @@ def _evaluate_strategy(
         avg_metrics[key] = avg
         all_scores.extend(valid)
 
-    traffic = _traffic_light(all_scores)
+    traffic = _ragas_traffic_light(all_scores)
+
+    # 4б. LLM-судья (0-3)
+    print(f"\n🧑‍⚖️ Оценка LLM-судьёй...")
+    judge_scores = compute_judge_scores(eval_data)
+    judge_avg = summarize_judge_scores(judge_scores)
 
     # 5. удаляем временную коллекцию
     print(f"\n🗑  Удаляю коллекцию {collection_name}...")
@@ -255,6 +262,7 @@ def _evaluate_strategy(
         index_time=index_time,
         avg_metrics=avg_metrics,
         traffic=traffic,
+        judge_avg=judge_avg,
     )
 
 
@@ -270,13 +278,14 @@ def _write_comparison_report(
     lines = [
         f"\n## Сравнение стратегий чанкинга — {ts}\n",
         "| Стратегия | Описание | Чанков | Время (сек) "
-        "| Faith | AnswRel | CtxPrec | CtxRec | Итог |",
+        "| Faith | AnswRel | CtxPrec | CtxRec | Судья | Итог |",
         "|-----------|----------|--------|-------------|"
-        "|-------|---------|---------|--------|------|",
+        "|-------|---------|---------|--------|-------|------|",
     ]
 
     for r in results:
         m = r.avg_metrics
+        judge_cell = f"{r.judge_avg:.2f}" if r.judge_avg is not None else "—"
         lines.append(
             f"| {r.strategy.name} | {r.strategy.description} "
             f"| {r.n_chunks} | {r.index_time:.0f} "
@@ -284,6 +293,7 @@ def _write_comparison_report(
             f"| {_fmt(m.get('answer_relevancy'))} "
             f"| {_fmt(m.get('context_precision'))} "
             f"| {_fmt(m.get('context_recall'))} "
+            f"| {judge_cell} "
             f"| {r.traffic} |"
         )
 

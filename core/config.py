@@ -98,6 +98,10 @@ class AppConfig(BaseModel):
     obsidian_vault: str
     telegram_bot_token: str = ""
 
+    # RAGAS-судья — отдельная модель через OpenRouter для надёжного JSON-вывода
+    ragas_judge_api_key: str = ""
+    ragas_judge_model: str = "openai/gpt-4o-mini"
+
     # из config.yaml — секции с параметрами
     llm: LlmConfig = LlmConfig()
     search: SearchConfig = SearchConfig()
@@ -161,6 +165,8 @@ def load_config(
     yaml_data["nano_gpt_model"] = os.environ.get("NANO_GPT_MODEL", "")
     yaml_data["obsidian_vault"] = os.environ.get("OBSIDIAN_VAULT", "")
     yaml_data["telegram_bot_token"] = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    yaml_data["ragas_judge_api_key"] = os.environ.get("RAGAS_JUDGE_API_KEY", "")
+    yaml_data["ragas_judge_model"] = os.environ.get("RAGAS_JUDGE_MODEL", "openai/gpt-4o-mini")
 
     # 4. Pydantic сам валидирует и подставит дефолты для пустых секций
     return AppConfig(**yaml_data)
