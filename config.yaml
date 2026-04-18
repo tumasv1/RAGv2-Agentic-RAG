@@ -6,12 +6,12 @@ llm:
 
 # — Настройки поиска —
 search:
-  max_chunks: 4                           # жёсткий лимит чанков для LLM
-  fetch_k: 40                              # кандидатов из каждой ветки
-  dense_score_threshold: 0.0               # cosine (0–1), подбирается по RAGAS
-  sparse_score_threshold: 0.0              # BM25, подбирается по RAGAS
+  max_chunks: 10                            # жёсткий лимит чанков для LLM
+  fetch_k: 10                               # кандидатов из каждой ветки
+  dense_score_threshold: 0.79               # cosine (0–1), подбирается по RAGAS
+  sparse_score_threshold: 0.0               # BM25, подбирается по RAGAS
   reranker_score_threshold: -3.3            # cross-encoder, подбирается по RAGAS
-  use_reranking: false                     # вкл/выкл реранкер
+  use_reranking: false                      # вкл/выкл реранкер
   reranker_model: "jinaai/jina-reranker-v2-base-multilingual"  # мультиязычный cross-encoder (ONNX)
 
 # — Настройки индексации —

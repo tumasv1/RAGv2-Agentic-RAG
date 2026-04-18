@@ -1,8 +1,10 @@
 """
 Обёртки RAGAS и вычисление метрик.
 
-RAGAS 0.2.x использует LangChain-обёртки для LLM и эмбеддингов —
-тех же самых, что уже настроены в core/ и retriever/.
+Используем два LLM:
+- judge LLM (openai/gpt-4o-mini через OpenRouter) — внутренний судья RAGAS,
+  надёжно возвращает JSON-вердикты даже для русскоязычного контента
+- embeddings — наш E5-large для answer_relevancy (генерация гипотетических вопросов)
 
 4 метрики:
     faithfulness       — ответ основан на контексте (без галлюцинаций)
@@ -16,7 +18,8 @@ RAGAS 0.2.x использует LangChain-обёртки для LLM и эмбе
 """
 
 from datasets import Dataset
-from ragas import evaluate
+from langchain_openai import ChatOpenAI
+from ragas import RunConfig, evaluate
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
@@ -26,16 +29,33 @@ from ragas.metrics import (
     faithfulness,
 )
 
-from core.llm_client import get_llm
+from core.config import get_config
 from retriever.embeddings import get_embeddings
+
+# OpenRouter — OpenAI-совместимый API-агрегатор
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # список метрик, которые вычисляем (можно расширить)
 METRICS = [faithfulness, answer_relevancy, context_precision, context_recall]
 
 
-def setup_ragas_llm() -> LangchainLLMWrapper:
-    """Оборачивает наш ChatOpenAI (nanogpt) в RAGAS-совместимую обёртку."""
-    return LangchainLLMWrapper(get_llm())
+def setup_ragas_judge_llm() -> LangchainLLMWrapper:
+    """
+    Создаёт LLM-судью для RAGAS через OpenRouter.
+
+    Используем отдельную модель (не nanogpt), потому что RAGAS-судья
+    должен надёжно возвращать JSON-вердикты. openai/gpt-4o-mini
+    делает это стабильно даже для русскоязычного контента.
+    """
+    cfg = get_config()
+    judge = ChatOpenAI(
+        model=cfg.ragas_judge_model,
+        openai_api_key=cfg.ragas_judge_api_key,
+        openai_api_base=_OPENROUTER_BASE_URL,
+        temperature=0,
+        request_timeout=120,  # OpenRouter под нагрузкой медленнее локальных API
+    )
+    return LangchainLLMWrapper(judge)
 
 
 def setup_ragas_embeddings() -> LangchainEmbeddingsWrapper:
@@ -55,13 +75,18 @@ def compute_metrics(dataset: Dataset) -> dict:
         Доступ: result["faithfulness"], result["context_recall"] и т.д.
         Каждый ключ — list[float] длиной len(dataset).
     """
-    ragas_llm = setup_ragas_llm()
+    ragas_llm = setup_ragas_judge_llm()
     ragas_emb = setup_ragas_embeddings()
+
+    # max_workers=4 — ограничиваем параллелизм, чтобы не словить rate limit на OpenRouter.
+    # По умолчанию RAGAS запускает слишком много параллельных запросов → TimeoutError.
+    run_cfg = RunConfig(max_workers=4, timeout=120)
 
     result = evaluate(
         dataset,
         metrics=METRICS,
         llm=ragas_llm,
         embeddings=ragas_emb,
+        run_config=run_cfg,
     )
     return result
