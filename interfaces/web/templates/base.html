@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}RAGv2{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/" class="brand">RAGv2</a>
+      <nav class="nav">
+        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Чат</a>
+        <a href="/debug" class="{% if request.url.path == '/debug' %}active{% endif %}">Debug</a>
+        <a href="/chunks" class="{% if request.url.path == '/chunks' %}active{% endif %}">Чанки</a>
+        <a href="/admin" class="{% if request.url.path == '/admin' %}active{% endif %}">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span>RAGv2 · localhost</span>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Инспектор чанков — RAGv2{% endblock %}
+
+{% block content %}
+<section class="chunks">
+  <h1>Инспектор чанков</h1>
+  <p class="muted">
+    Чистый retrieval через <code>retriever.search</code> без агента.
+    Полезно для отладки качества поиска.
+  </p>
+
+  <form method="get" action="/chunks" class="chunks-form">
+    <label>
+      Запрос
+      <input type="text" name="q" value="{{ q }}" required autofocus>
+    </label>
+    <label>
+      BM25 термины <span class="muted">(опционально)</span>
+      <input type="text" name="bm25_terms" value="{{ bm25_terms }}"
+             placeholder="даты, аббревиатуры, коды — для точного совпадения">
+    </label>
+    <label>
+      top_k
+      <input type="number" name="top_k" value="{{ top_k }}" min="1" max="50">
+    </label>
+    <button type="submit" class="btn-primary">Искать</button>
+  </form>
+
+  {% if error %}
+    <div class="banner error">{{ error }}</div>
+  {% endif %}
+
+  {% if q and not error %}
+    <p class="muted">
+      Найдено: {{ results|length }} {% if took_ms %}· {{ "%.0f"|format(took_ms) }} мс{% endif %}
+    </p>
+    {% if results %}
+      <table class="chunks-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Score</th>
+            <th>Файл</th>
+            <th>Секция</th>
+            <th>Тип</th>
+            <th>Теги</th>
+            <th>Created</th>
+            <th>Превью</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in results %}
+          <tr>
+            <td>{{ r.index }}</td>
+            <td>
+              <div class="score-bar" style="--w: {{ (r.score * 100)|round(0, 'floor') }}%">
+                <span>{{ "%.4f"|format(r.score) }}</span>
+              </div>
+            </td>
+            <td>
+              <details>
+                <summary><code>{{ r.file_name }}</code></summary>
+                <div class="meta"><small>{{ r.file_path }}</small></div>
+                <pre class="chunk-content">{{ r.content }}</pre>
+              </details>
+            </td>
+            <td>
+              {% if r.heading_hierarchy %}
+                <small>{{ r.heading_hierarchy|join(" → ") }}</small>
+              {% else %}
+                <small>{{ r.section_header }}</small>
+              {% endif %}
+            </td>
+            <td><small>{{ r.type }}</small></td>
+            <td><small>{{ r.tags|join(", ") }}</small></td>
+            <td><small>{{ r.created }}</small></td>
+            <td>{{ r.content_preview }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="banner warning">Ничего не найдено. Попробуй другие термины или снизь порог score в config.yaml.</div>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

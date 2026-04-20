@@ -1,0 +1,30 @@
+{# Latency breakdown: LLM / Tools / Overhead #}
+<h2>Latency breakdown</h2>
+<table class="kv">
+  <tr>
+    <th>LLM</th>
+    <td>
+      <div class="stacked-bar"><div class="bar-llm" style="width: {{ latency_breakdown.llm_pct }}%"></div></div>
+    </td>
+    <td>{{ "%.0f"|format(latency_breakdown.llm_ms) }} мс ({{ "%.1f"|format(latency_breakdown.llm_pct) }}%)</td>
+  </tr>
+  <tr>
+    <th>Tools</th>
+    <td>
+      <div class="stacked-bar"><div class="bar-tool" style="width: {{ latency_breakdown.tool_pct }}%"></div></div>
+    </td>
+    <td>{{ "%.0f"|format(latency_breakdown.tool_ms) }} мс ({{ "%.1f"|format(latency_breakdown.tool_pct) }}%)</td>
+  </tr>
+  <tr>
+    <th>Overhead</th>
+    <td>
+      <div class="stacked-bar"><div class="bar-overhead" style="width: {{ latency_breakdown.overhead_pct }}%"></div></div>
+    </td>
+    <td>{{ "%.0f"|format(latency_breakdown.overhead_ms) }} мс ({{ "%.1f"|format(latency_breakdown.overhead_pct) }}%)</td>
+  </tr>
+  <tr>
+    <th>Total</th>
+    <td></td>
+    <td><strong>{{ "%.0f"|format(latency_breakdown.total_ms) }} мс</strong></td>
+  </tr>
+</table>

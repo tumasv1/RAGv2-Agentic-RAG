@@ -1,0 +1,41 @@
+{# LLM-вызовы: раскрывающиеся details #}
+<h2>LLM calls</h2>
+{% if not trace.llm_calls %}
+  <p class="muted">LLM не вызывался.</p>
+{% else %}
+  {% for ev in trace.llm_calls %}
+    <details class="llm-event">
+      <summary>
+        LLM #{{ loop.index }} · <strong>{{ ev.node }}</strong>
+        <small class="muted">({{ "%.0f"|format(ev.latency_ms) }} мс)</small>
+        {% if ev.tool_calls %}
+          · tool_calls: {% for tc in ev.tool_calls %}<code>{{ tc.name }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+        {% endif %}
+      </summary>
+
+      <h4>Вход ({{ ev.messages_in|length }} сообщений)</h4>
+      <ol class="llm-messages">
+        {% for m in ev.messages_in %}
+          <li>
+            <span class="msg-role">[{{ m.role }}]</span>
+            <span class="msg-content">{{ m.content|truncate(800, true, "…") }}</span>
+          </li>
+        {% endfor %}
+      </ol>
+
+      {% if ev.tool_calls %}
+        <h4>Tool calls</h4>
+        <ul class="tool-calls">
+          {% for tc in ev.tool_calls %}
+            <li><code>{{ tc.name }}</code>({{ tc.args|tojson }})</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if ev.response %}
+        <h4>Ответ</h4>
+        <pre class="llm-response">{{ ev.response|truncate(2000, true, "…") }}</pre>
+      {% endif %}
+    </details>
+  {% endfor %}
+{% endif %}

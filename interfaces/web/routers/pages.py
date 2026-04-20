@@ -1,0 +1,163 @@
+"""
+HTML-страницы: /, /debug, /chunks, /admin.
+
+Страницы — server-rendered (Jinja2). AJAX минимальный:
+- На /chat форма сабмитит через fetch, JS рендерит ответ.
+- На /debug, /chunks форма сабмитит обычным POST/GET — сервер рендерит полную страницу.
+- На /admin JS поллит статус reindex.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Form, Request
+
+from interfaces.web.deps import get_or_create_thread_id, get_templates
+
+
+router = APIRouter()
+
+
+@router.get("/")
+async def index(request: Request, thread_id: str = Depends(get_or_create_thread_id)):
+    """Главная страница: чат с агентом."""
+    templates = get_templates()
+    return templates.TemplateResponse(
+        request,
+        "chat.html",
+        {"thread_id": thread_id},
+    )
+
+
+@router.get("/debug")
+async def debug_page(request: Request, thread_id: str = Depends(get_or_create_thread_id)):
+    """Страница debug-дашборда (пустая форма; результаты через POST)."""
+    templates = get_templates()
+    return templates.TemplateResponse(
+        request,
+        "debug.html",
+        {"thread_id": thread_id, "trace": None, "response": None},
+    )
+
+
+@router.post("/debug")
+async def debug_run(
+    request: Request,
+    question: str = Form(...),
+    thread_id_form: str = Form("", alias="thread_id"),
+    thread_id: str = Depends(get_or_create_thread_id),
+):
+    """
+    Сабмит debug-формы: прогоняет вопрос через ask_debug и рендерит страницу с трейсом.
+
+    thread_id берём из формы если заполнен — для воспроизведения конкретной сессии.
+    Иначе — cookie.
+    """
+    import time
+    import json as _json
+
+    from agent import ask_debug, get_mermaid
+    from interfaces.web.schemas import AskResponse
+
+    effective_tid = thread_id_form.strip() or thread_id
+
+    t0 = time.time()
+    try:
+        response, trace = ask_debug(question, thread_id=effective_tid)
+    except Exception as e:
+        # пользователь увидит отрендеренную страницу с баннером ошибки
+        templates = get_templates()
+        return templates.TemplateResponse(
+            request,
+            "debug.html",
+            {
+                "thread_id": effective_tid,
+                "trace": None,
+                "response": None,
+                "error": f"Ошибка агента: {e}",
+            },
+            status_code=503,
+        )
+    latency_ms = (time.time() - t0) * 1000
+
+    ask_resp = AskResponse.from_agent(response, effective_tid, latency_ms)
+    trace_dict = trace.to_dict()
+
+    # разбивка latency для _trace_latency.html
+    llm_ms = sum(ev.get("latency_ms", 0) for ev in trace_dict["llm_calls"])
+    tool_ms = sum(ev.get("latency_ms", 0) for ev in trace_dict["tool_calls"])
+    total_ms = trace_dict.get("total_latency_ms", latency_ms) or 1.0
+    overhead_ms = max(0.0, total_ms - llm_ms - tool_ms)
+    latency_breakdown = {
+        "llm_ms": llm_ms,
+        "tool_ms": tool_ms,
+        "overhead_ms": overhead_ms,
+        "total_ms": total_ms,
+        "llm_pct": (llm_ms / total_ms) * 100 if total_ms else 0.0,
+        "tool_pct": (tool_ms / total_ms) * 100 if total_ms else 0.0,
+        "overhead_pct": (overhead_ms / total_ms) * 100 if total_ms else 0.0,
+    }
+
+    templates = get_templates()
+    return templates.TemplateResponse(
+        request,
+        "debug.html",
+        {
+            "thread_id": effective_tid,
+            "trace": trace_dict,
+            "trace_json": _json.dumps(trace_dict, ensure_ascii=False, indent=2),
+            "response": ask_resp,
+            "latency_breakdown": latency_breakdown,
+            "mermaid_src": get_mermaid(),
+            "error": None,
+        },
+    )
+
+
+@router.get("/chunks")
+async def chunks_page(
+    request: Request,
+    q: str = "",
+    bm25_terms: str = "",
+    top_k: int = 10,
+):
+    """
+    Инспектор чанков. GET-форма: при `q` — делает поиск, иначе — пустая форма.
+
+    Поиск идёт через retriever.search.search() напрямую, без агента.
+    """
+    from interfaces.web.routers.search import _run_search, _results_to_dto
+
+    templates = get_templates()
+    results_dto: list = []
+    error: str | None = None
+    took_ms = 0.0
+
+    if q.strip():
+        # ограничиваем top_k разумными границами
+        top_k = max(1, min(top_k, 50))
+        try:
+            results, took_ms = _run_search(q.strip(), bm25_terms.strip() or None)
+        except Exception as e:
+            error = f"Ошибка поиска: {e}"
+            results = []
+        results_dto = _results_to_dto(results[:top_k])
+
+    return templates.TemplateResponse(
+        request,
+        "chunks.html",
+        {
+            "q": q,
+            "bm25_terms": bm25_terms,
+            "top_k": top_k,
+            "results": results_dto,
+            "took_ms": took_ms,
+            "error": error,
+        },
+    )
+
+
+@router.get("/admin")
+async def admin_page(request: Request):
+    """Админ-страница: кнопки reindex + статус через JS-polling."""
+    templates = get_templates()
+    return templates.TemplateResponse(request, "admin.html", {})
