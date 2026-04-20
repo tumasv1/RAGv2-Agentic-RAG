@@ -2,26 +2,29 @@
 Сравнение стратегий чанкинга через RAGAS.
 
 Для каждой стратегии:
-1. Создаёт временную коллекцию в Qdrant
+1. Создаёт коллекцию в Qdrant (временную или постоянную)
 2. Индексирует vault с изменёнными параметрами чанкинга
 3. Прогоняет golden set (поиск + LLM + RAGAS метрики)
-4. Удаляет временную коллекцию
+4. Удаляет временную коллекцию (если не --persist)
 
 Результат — сводная таблица метрик по стратегиям.
 
 Запуск:
-    python -m eval.compare_splitters                                # все 4 стратегии
+    python -m eval.compare_splitters                                # все 5 стратегий (tmp коллекции)
     python -m eval.compare_splitters --samples 3                    # первые 3 кейса
     python -m eval.compare_splitters --strategies baseline,small    # только 2 стратегии
+    python -m eval.compare_splitters --persist                      # сохранить коллекции (splitter_*)
+    python -m eval.compare_splitters --index-only                   # только индексация без eval
 
 Стратегии:
     baseline    — MHTS + RCTS, chunk_size=1700, overlap=200 (текущая)
     mhts_only   — только MHTS, без дорезки RCTS
     small       — MHTS + RCTS, chunk_size=800, overlap=100
     large       — MHTS + RCTS, chunk_size=2500, overlap=300
+    rcts_only   — только RCTS, chunk_size=1700, overlap=300 (без MHTS)
 
 ⚠ Время выполнения: ~9 мин на индексацию одной стратегии (CPU).
-  4 стратегии ≈ 36 мин + RAGAS eval.
+  5 стратегий ≈ 45 мин + RAGAS eval.
 """
 
 from __future__ import annotations
@@ -51,18 +54,20 @@ from retriever.indexer import _find_bm25_model_path, _scan_vault, _index_files
 @dataclass
 class SplitterStrategy:
     """Описание стратегии чанкинга."""
-    name: str           # короткое имя (baseline, mhts_only, small, large)
+    name: str            # короткое имя (baseline, mhts_only, small, large, rcts_only)
     chunk_size: int      # RecursiveCharacterTextSplitter chunk_size
     chunk_overlap: int   # RecursiveCharacterTextSplitter overlap
     description: str     # для отчёта
+    use_mhts: bool = True  # False → пропустить MHTS, использовать только RCTS
 
 
-# 4 стратегии из плана
+# 5 стратегий
 ALL_STRATEGIES = [
-    SplitterStrategy("baseline", 1700, 200, "MHTS + RCTS (1700/200) — текущая"),
-    SplitterStrategy("mhts_only", 100_000, 0, "Только MHTS, без дорезки RCTS"),
-    SplitterStrategy("small", 800, 100, "MHTS + RCTS (800/100) — мелкие чанки"),
-    SplitterStrategy("large", 2500, 300, "MHTS + RCTS (2500/300) — крупные чанки"),
+    SplitterStrategy("baseline",  1700,     200, "MHTS + RCTS (1700/200) — текущая"),
+    SplitterStrategy("mhts_only", 100_000,  0,   "Только MHTS, без дорезки RCTS"),
+    SplitterStrategy("small",     800,      100,  "MHTS + RCTS (800/100) — мелкие чанки"),
+    SplitterStrategy("large",     2500,     300,  "MHTS + RCTS (2500/300) — крупные чанки"),
+    SplitterStrategy("rcts_only", 1700,     300,  "Только RCTS (1700/300), без MHTS", use_mhts=False),
 ]
 
 # имена стратегий → для аргумента --strategies
@@ -162,29 +167,43 @@ def _make_search_fn(store: QdrantVectorStore):
 
 # --- Индексация одной стратегии ---
 
-def _index_strategy(strategy: SplitterStrategy) -> tuple[QdrantVectorStore, int, float]:
+def _index_strategy(
+    strategy: SplitterStrategy,
+    collection_name: str,
+) -> tuple[QdrantVectorStore, int, float]:
     """
     Индексирует vault с параметрами стратегии.
 
-    Подменяет конфиг (chunk_size, chunk_overlap) на время индексации,
-    затем восстанавливает оригинальные значения.
+    Подменяет конфиг (chunk_size, chunk_overlap, use_mhts) на время индексации,
+    затем восстанавливает оригинальные значения. Перед индексацией удаляет
+    существующую коллекцию (чистая переиндексация).
+
+    Args:
+        strategy: стратегия чанкинга
+        collection_name: имя коллекции Qdrant (tmp_ или splitter_)
 
     Returns:
         (store, n_chunks, elapsed_sec)
     """
     cfg = get_config()
-    collection_name = f"tmp_{strategy.name}"
 
     # запоминаем оригинальные значения
     orig_size = cfg.ingest.chunk_size
     orig_overlap = cfg.ingest.chunk_overlap
+    orig_use_mhts = cfg.ingest.use_mhts
 
     try:
         # подменяем параметры чанкинга
         cfg.ingest.chunk_size = strategy.chunk_size
         cfg.ingest.chunk_overlap = strategy.chunk_overlap
+        cfg.ingest.use_mhts = strategy.use_mhts
 
-        # создаём временную коллекцию
+        # удаляем коллекцию если существует — чистая переиндексация
+        store = _create_temp_store(collection_name)
+        _delete_collection(store, collection_name)
+        store.client.close()
+
+        # создаём коллекцию заново
         store = _create_temp_store(collection_name)
 
         # сканируем vault
@@ -202,6 +221,7 @@ def _index_strategy(strategy: SplitterStrategy) -> tuple[QdrantVectorStore, int,
         # всегда восстанавливаем оригинальные значения
         cfg.ingest.chunk_size = orig_size
         cfg.ingest.chunk_overlap = orig_overlap
+        cfg.ingest.use_mhts = orig_use_mhts
 
 
 # --- Оценка одной стратегии ---
@@ -209,19 +229,27 @@ def _index_strategy(strategy: SplitterStrategy) -> tuple[QdrantVectorStore, int,
 def _evaluate_strategy(
     strategy: SplitterStrategy,
     cases: list[dict],
+    persist: bool = False,
 ) -> StrategyResult:
     """
-    Полный цикл для одной стратегии: индексация → поиск → RAGAS → очистка.
+    Полный цикл для одной стратегии: индексация → поиск → RAGAS → (очистка).
+
+    Args:
+        strategy: стратегия чанкинга
+        cases: кейсы golden set
+        persist: если True — коллекция splitter_{name} сохраняется на диске
     """
-    collection_name = f"tmp_{strategy.name}"
+    collection_name = f"splitter_{strategy.name}" if persist else f"tmp_{strategy.name}"
     print(f"\n{'=' * 60}")
     print(f"Стратегия: {strategy.name} — {strategy.description}")
-    print(f"  chunk_size={strategy.chunk_size}, overlap={strategy.chunk_overlap}")
+    print(f"  chunk_size={strategy.chunk_size}, overlap={strategy.chunk_overlap}, use_mhts={strategy.use_mhts}")
+    if persist:
+        print(f"  коллекция: {collection_name} (постоянная)")
     print(f"{'=' * 60}")
 
     # 1. индексируем vault
     print(f"\n📦 Индексация vault...")
-    store, n_chunks, index_time = _index_strategy(strategy)
+    store, n_chunks, index_time = _index_strategy(strategy, collection_name)
     print(f"  → {n_chunks} чанков за {index_time:.0f} сек")
 
     # 2. прогоняем golden set
@@ -252,9 +280,12 @@ def _evaluate_strategy(
     judge_scores = compute_judge_scores(eval_data)
     judge_avg = summarize_judge_scores(judge_scores)
 
-    # 5. удаляем временную коллекцию
-    print(f"\n🗑  Удаляю коллекцию {collection_name}...")
-    _delete_collection(store, collection_name)
+    # 5. очистка (только если не persist)
+    if persist:
+        print(f"\n💾  Коллекция сохранена: {collection_name}")
+    else:
+        print(f"\n🗑  Удаляю коллекцию {collection_name}...")
+        _delete_collection(store, collection_name)
 
     return StrategyResult(
         strategy=strategy,
@@ -320,45 +351,100 @@ def _write_comparison_report(
     return output_path
 
 
+# --- Вспомогательная функция для разбора стратегий ---
+
+def _resolve_strategies(strategy_names: list[str] | None) -> list[SplitterStrategy] | None:
+    """Валидирует имена стратегий и возвращает список объектов."""
+    if not strategy_names:
+        return ALL_STRATEGIES
+    strategies = []
+    for name in strategy_names:
+        if name not in STRATEGY_MAP:
+            print(f"⚠ Неизвестная стратегия: {name}")
+            print(f"  Доступные: {', '.join(STRATEGY_MAP.keys())}")
+            return None
+        strategies.append(STRATEGY_MAP[name])
+    return strategies
+
+
+# --- Режим только индексации ---
+
+def _index_only_mode(strategies: list[SplitterStrategy]) -> None:
+    """
+    Индексирует vault в постоянные коллекции без запуска eval.
+
+    Создаёт splitter_{name} в qdrant_data/ для каждой стратегии.
+    Существующие коллекции пересоздаются с нуля.
+    """
+    print("=" * 60)
+    print(f"Режим: только индексация (--index-only)")
+    print(f"  Стратегий: {len(strategies)}")
+    print(f"  Коллекции: {', '.join(f'splitter_{s.name}' for s in strategies)}")
+    print(f"  Ожидаемое время: ~{len(strategies) * 9} мин")
+    print("=" * 60)
+
+    for strategy in strategies:
+        collection_name = f"splitter_{strategy.name}"
+        print(f"\n{'=' * 60}")
+        print(f"Стратегия: {strategy.name} — {strategy.description}")
+        print(f"  chunk_size={strategy.chunk_size}, overlap={strategy.chunk_overlap}, use_mhts={strategy.use_mhts}")
+        print(f"  коллекция: {collection_name}")
+        print(f"{'=' * 60}")
+
+        print(f"\n📦 Индексация vault...")
+        store, n_chunks, elapsed = _index_strategy(strategy, collection_name)
+        print(f"  → {n_chunks} чанков за {elapsed:.0f} сек")
+        print(f"  💾  Коллекция сохранена: {collection_name}")
+
+    print(f"\n{'=' * 60}")
+    print(f"Готово! Запускай eval:")
+    for strategy in strategies:
+        print(f"  python -m eval.eval_ragas --strategy {strategy.name}")
+    print("=" * 60)
+
+
 # --- Main ---
 
 def main(
     n_samples: int | None = None,
     strategy_names: list[str] | None = None,
+    persist: bool = False,
+    index_only: bool = False,
 ) -> None:
     """
     Основной пайплайн: для каждой стратегии → индексация → eval → отчёт.
 
     Args:
         n_samples: количество кейсов из golden set (дефолт: все)
-        strategy_names: список имён стратегий (дефолт: все 4)
+        strategy_names: список имён стратегий (дефолт: все 5)
+        persist: сохранить коллекции на диске (splitter_*) вместо удаления
+        index_only: только индексация без eval (подразумевает persist)
     """
-    # определяем стратегии
-    if strategy_names:
-        strategies = []
-        for name in strategy_names:
-            if name not in STRATEGY_MAP:
-                print(f"⚠ Неизвестная стратегия: {name}")
-                print(f"  Доступные: {', '.join(STRATEGY_MAP.keys())}")
-                return
-            strategies.append(STRATEGY_MAP[name])
-    else:
-        strategies = ALL_STRATEGIES
+    strategies = _resolve_strategies(strategy_names)
+    if strategies is None:
+        return
+
+    # --index-only: просто строим постоянные коллекции, без eval
+    if index_only:
+        _index_only_mode(strategies)
+        return
 
     # загружаем golden set один раз
     cases = load_golden_set(n=n_samples)
 
+    mode_label = "постоянные коллекции (splitter_*)" if persist else "временные коллекции (tmp_)"
     print("=" * 60)
     print(f"Сравнение стратегий чанкинга")
     print(f"  Стратегий: {len(strategies)}")
     print(f"  Кейсов: {len(cases)}")
+    print(f"  Режим: {mode_label}")
     print(f"  Ожидаемое время: ~{len(strategies) * 10} мин")
     print("=" * 60)
 
     # прогоняем стратегии последовательно
     results: list[StrategyResult] = []
     for strategy in strategies:
-        result = _evaluate_strategy(strategy, cases)
+        result = _evaluate_strategy(strategy, cases, persist=persist)
         results.append(result)
 
     # сводный отчёт
@@ -375,7 +461,20 @@ if __name__ == "__main__":
         "--strategies", type=str, default=None,
         help="Стратегии через запятую (дефолт: все). Пример: baseline,small",
     )
+    parser.add_argument(
+        "--persist", action="store_true",
+        help="Сохранить коллекции splitter_* после eval (не удалять)",
+    )
+    parser.add_argument(
+        "--index-only", action="store_true",
+        help="Только индексация без eval (создаёт постоянные коллекции splitter_*)",
+    )
     args = parser.parse_args()
 
     strat_list = args.strategies.split(",") if args.strategies else None
-    main(n_samples=args.samples, strategy_names=strat_list)
+    main(
+        n_samples=args.samples,
+        strategy_names=strat_list,
+        persist=args.persist,
+        index_only=args.index_only,
+    )

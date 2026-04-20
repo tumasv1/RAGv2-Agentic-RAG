@@ -33,7 +33,8 @@ class LlmConfig(BaseModel):
 class SearchConfig(BaseModel):
     """Настройки поиска: сколько чанков забирать, пороги, реранкер."""
     max_chunks: int = 10                    # жёсткий лимит чанков для LLM
-    fetch_k: int = 40                       # кандидатов из каждой ветки
+    fetch_k: int = 40                       # кандидатов из dense-ветки
+    bm25_top_k: int = 3                     # кандидатов из BM25-ветки (меньше — BM25 точечный)
 
     # пороги score для каждого этапа — у каждого своя шкала
     dense_score_threshold: float = 0.0      # cosine similarity (0–1), 0 = не фильтруем
@@ -50,6 +51,7 @@ class IngestConfig(BaseModel):
     chunk_size: int = 1700
     chunk_overlap: int = 200
     enrich_content: bool = True                    # препендить метаданные (имя файла, путь, тип, теги) к тексту чанка
+    use_mhts: bool = True                          # использовать MarkdownHeaderTextSplitter; False = только RCTS
     exclude_folders: list[str] = [             # папки, которые пропускаем при сканировании
         "04. Шаблоны",
         "97. Вложения",

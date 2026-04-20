@@ -326,16 +326,18 @@ def _section_detailed(
 
 # --- Основная функция ---
 
-def _build_report_filename() -> str:
+def _build_report_filename(strategy_name: str | None = None) -> str:
     """
     Строит имя файла отчёта с параметрами pipeline в имени.
 
-    Формат: ragas_report_YYYY-MM-DD_M{max_chunks}_F{fetch_k}_D{dense}_S{sparse}[_R{reranker}].md
+    Формат: ragas_report_YYYY-MM-DD_M{max_chunks}_F{fetch_k}_D{dense}_S{sparse}[_R{reranker}][_{strategy}].md
     Суффикс _R добавляется только если use_reranking=True.
+    Суффикс _{strategy} добавляется если задана стратегия.
 
     Примеры:
-        ragas_report_2026-04-17_M10_F10_D0.75_S0.0_R-3.3.md  (реранкер включён)
-        ragas_report_2026-04-17_M10_F10_D0.75_S0.0.md         (реранкер выключен)
+        ragas_report_2026-04-17_M10_F10_D0.75_S0.0_baseline.md    (стратегия baseline)
+        ragas_report_2026-04-17_M10_F10_D0.75_S0.0_R-3.3_small.md (реранкер + стратегия)
+        ragas_report_2026-04-17_M10_F10_D0.75_S0.0.md             (prod, без стратегии)
     """
     cfg = get_config().search
     date = datetime.now().strftime("%Y-%m-%d")
@@ -348,6 +350,8 @@ def _build_report_filename() -> str:
     )
     if cfg.use_reranking:
         name += f"_R{cfg.reranker_score_threshold}"
+    if strategy_name:
+        name += f"_{strategy_name}"
     return name + ".md"
 
 
@@ -356,6 +360,7 @@ def write_report(
     eval_data: EvalDataset,
     judge_scores: list[JudgeScore] | None = None,
     output_path: Path | None = None,
+    strategy_name: str | None = None,
 ) -> Path:
     """
     Собирает markdown-отчёт из модульных секций и записывает в файл.
@@ -367,12 +372,16 @@ def write_report(
         eval_data: данные прогона из run_golden_set()
         judge_scores: оценки LLM-судьи 0-3 (опционально)
         output_path: путь к файлу отчёта (дефолт: reports/ragas_report_<params>.md)
+        strategy_name: имя стратегии сплиттера (добавляется в имя файла)
 
     Returns:
         Path к записанному файлу
     """
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-    lines = [f"# RAGAS Evaluation — {ts}\n"]
+    header = f"# RAGAS Evaluation — {ts}"
+    if strategy_name:
+        header += f"  |  стратегия: {strategy_name}"
+    lines = [header + "\n"]
 
     # секции — каждую можно закомментировать
     lines += _section_settings()
@@ -392,7 +401,7 @@ def write_report(
         cfg = get_config()
         report_dir = Path(cfg.eval.report_dir)
         report_dir.mkdir(parents=True, exist_ok=True)
-        output_path = report_dir / _build_report_filename()
+        output_path = report_dir / _build_report_filename(strategy_name)
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(content)
