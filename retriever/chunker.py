@@ -195,20 +195,26 @@ def chunk_file(file_path: Path) -> list[tuple[str, ChunkMetadata]]:
     if not body.strip():
         return []
 
-    # 4. разбиваем по заголовкам (шаг 1)
-    md_splitter = MarkdownHeaderTextSplitter(
-        headers_to_split_on=HEADERS_TO_SPLIT,
-        strip_headers=False,  # оставляем заголовки в тексте — полезно для контекста LLM
-    )
-    header_docs = md_splitter.split_text(body)
-
-    # 5. дорезаем большие секции (шаг 2)
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=cfg.chunk_size,
         chunk_overlap=cfg.chunk_overlap,
         separators=SEPARATORS,
     )
-    final_docs = text_splitter.split_documents(header_docs)
+
+    if cfg.use_mhts:
+        # 4. разбиваем по заголовкам (шаг 1)
+        md_splitter = MarkdownHeaderTextSplitter(
+            headers_to_split_on=HEADERS_TO_SPLIT,
+            strip_headers=False,  # оставляем заголовки в тексте — полезно для контекста LLM
+        )
+        header_docs = md_splitter.split_text(body)
+
+        # 5. дорезаем большие секции (шаг 2)
+        final_docs = text_splitter.split_documents(header_docs)
+    else:
+        # rcts_only: пропускаем MHTS, делим весь текст напрямую через RCTS
+        # heading_hierarchy у таких чанков будет пустой
+        final_docs = text_splitter.create_documents([body])
 
     # --- Подготовка метаданных из frontmatter ---
 

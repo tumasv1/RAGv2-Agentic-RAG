@@ -174,7 +174,7 @@ def search(query: str, bm25_terms: str | None = None) -> list[SearchResult]:
                 qmodels.Prefetch(
                     query=sparse_vec,
                     using=_SPARSE,
-                    limit=cfg.fetch_k,
+                    limit=cfg.bm25_top_k,
                     score_threshold=cfg.sparse_score_threshold or None,
                 ),
             ],
@@ -202,6 +202,95 @@ def search(query: str, bm25_terms: str | None = None) -> list[SearchResult]:
         results = results[: cfg.max_chunks]
 
     return results
+
+
+# --- фабрика search-функции для произвольной коллекции (eval) ---
+
+def make_search_fn(collection_name: str):
+    """
+    Создаёт search-функцию с полным pipeline (dense/hybrid/reranker)
+    для произвольной коллекции Qdrant.
+
+    Используется в eval_ragas.py --strategy: позволяет гонять eval
+    против любой постоянной коллекции (splitter_baseline, splitter_small, …)
+    с теми же настройками поиска что и prod-коллекция.
+
+    Args:
+        collection_name: имя коллекции в qdrant_data/ (напр. "splitter_baseline")
+
+    Returns:
+        search_fn(query, bm25_terms=None) → list[SearchResult]
+    """
+    from pathlib import Path
+    from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
+    from core.config import _find_project_root
+    from retriever.indexer import _find_bm25_model_path
+    from retriever.embeddings import get_embeddings
+
+    cfg = get_config()
+    qdrant_path = Path(cfg.qdrant.path)
+    if not qdrant_path.is_absolute():
+        qdrant_path = _find_project_root() / qdrant_path
+
+    bm25_kwargs: dict = {}
+    bm25_cached = _find_bm25_model_path()
+    if bm25_cached:
+        bm25_kwargs["specific_model_path"] = str(bm25_cached)
+
+    store = QdrantVectorStore.construct_instance(
+        embedding=get_embeddings(),
+        sparse_embedding=FastEmbedSparse("Qdrant/bm25", **bm25_kwargs),
+        retrieval_mode=RetrievalMode.HYBRID,
+        client_options={"path": str(qdrant_path)},
+        collection_name=collection_name,
+    )
+
+    def _search(query: str, bm25_terms: str | None = None) -> list[SearchResult]:
+        cfg_s = get_config().search
+        dense_vec = store.embeddings.embed_query(query)
+
+        if bm25_terms is not None and bm25_terms.strip():
+            sparse_raw = store._sparse_embeddings.embed_query(bm25_terms.strip())
+            sparse_vec = qmodels.SparseVector(
+                indices=sparse_raw.indices,
+                values=sparse_raw.values,
+            )
+            points = store.client.query_points(
+                collection_name=store.collection_name,
+                prefetch=[
+                    qmodels.Prefetch(
+                        query=dense_vec, using=_DENSE, limit=cfg_s.fetch_k,
+                        score_threshold=cfg_s.dense_score_threshold or None,
+                    ),
+                    qmodels.Prefetch(
+                        query=sparse_vec, using=_SPARSE, limit=cfg_s.bm25_top_k,
+                        score_threshold=cfg_s.sparse_score_threshold or None,
+                    ),
+                ],
+                query=qmodels.FusionQuery(fusion=qmodels.Fusion.RRF),
+                limit=cfg_s.fetch_k,
+                with_payload=True,
+            )
+        else:
+            points = store.client.query_points(
+                collection_name=store.collection_name,
+                query=dense_vec,
+                using=_DENSE,
+                limit=cfg_s.fetch_k,
+                score_threshold=cfg_s.dense_score_threshold or None,
+                with_payload=True,
+            )
+
+        results = [r for p in points.points if (r := _point_to_result(p)) is not None]
+
+        if cfg_s.use_reranking and results:
+            results = _rerank(query, results)
+        else:
+            results = results[: cfg_s.max_chunks]
+
+        return results
+
+    return _search
 
 
 # --- CLI: python -m retriever.search "запрос" [--bm25 "термины"] ---

@@ -80,7 +80,7 @@ def compute_metrics(dataset: Dataset) -> dict:
 
     # max_workers=4 — ограничиваем параллелизм, чтобы не словить rate limit на OpenRouter.
     # По умолчанию RAGAS запускает слишком много параллельных запросов → TimeoutError.
-    run_cfg = RunConfig(max_workers=4, timeout=120)
+    run_cfg = RunConfig(max_workers=4, timeout=240)
 
     result = evaluate(
         dataset,

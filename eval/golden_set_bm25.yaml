@@ -1,0 +1,66 @@
+# Golden set для тестирования BM25 поиска
+#
+# id:             порядковый номер
+# term:           редкий термин для поиска
+# result:         ~30 символов до и после термина (контекст из документа)
+# reference_docs: файл, в котором ДОЛЖЕН быть найден термин
+
+- id: 1
+  term: "6S59VB"
+  result: "- **ФИО:** Михаил Тумасов\n- **Бронирование:** 6S59VB\n- **Номер билета:** 216 243"
+  reference_docs:
+    - "01. Private/Семья/Путешествия/🏂 Отпуск Шерегеш 2026.md"
+
+- id: 2
+  term: "BL3BB"
+  result: "| 8B            | BL3BB         | Бластоциста | Крио 1 |"
+  reference_docs:
+    - "01. Private/Семья/Родительство/Эмбриологический протокол ЭКО.md"
+
+- id: 3
+  term: "Sage 1-Step"
+  result: "**Метод оплодотворения:** ЭКО (стандартное)\n**Среда культивирования:** Sage 1-Step"
+  reference_docs:
+    - "01. Private/Семья/Родительство/Эмбриологический протокол ЭКО.md"
+
+- id: 4
+  term: "Kitazato"
+  result: "| Витрификация   | Kitazato      | Сосуд 29, Канистра 2, Секция многогранная"
+  reference_docs:
+    - "01. Private/Семья/Родительство/Эмбриологический протокол ЭКО.md"
+
+- id: 5
+  term: "Z-11444916-0002"
+  result: "Оплачено (на Ozon)\n- Номер заказа Ozon: Z-11444916-0002\n- Поддержка Ozon: +7 495"
+  reference_docs:
+    - "01. Private/Семья/Путешествия/Поездка в Москву в марте 2026 на концерт Flo Rida.md"
+
+- id: 6
+  term: "Hdts675dlko-s!2"
+  result: "NPM Acsess:\nuser: stas\npsw: Hdts675dlko-s!2\n\n## Telegram bot"
+  reference_docs:
+    - "01. Private/Инфраструктура/🖥️ Домашний сервер.md"
+
+- id: 7
+  term: "88173257"
+  result: "## Енева\nНастройки Интернет\nДоговор:88173257\nIP-адрес:95.161.158.115"
+  reference_docs:
+    - "01. Private/Инфраструктура/🖥️ Домашний сервер.md"
+
+- id: 8
+  term: "31.169.124.174"
+  result: "## VPS Нидерланды 31.169.124.174\nhttps://my.hip.hosting/\nIPv4: 31.169.124.174"
+  reference_docs:
+    - "01. Private/Инфраструктура/VPS.md"
+
+- id: 9
+  term: "+995568556449"
+  result: "## esim Грузия\n+995568556449\n+995 568 556 449\nℹ️ Привязан к Claude"
+  reference_docs:
+    - "01. Private/Инфраструктура/eSIM.md"
+
+- id: 10
+  term: "2a03:afc0:9::1fda"
+  result: "IPv4: 31.169.124.174\nIPv6: 2a03:afc0:9::1fda\nLogin: root"
+  reference_docs:
+    - "01. Private/Инфраструктура/VPS.md"

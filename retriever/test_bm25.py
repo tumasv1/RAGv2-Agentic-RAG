@@ -19,19 +19,30 @@ from retriever.indexer import get_qdrant_store
 from retriever.search import _embed_sparse, _point_to_result
 
 
-def bm25_search(query: str, top_k: int = 10) -> list[SearchResult]:
+def bm25_search(query: str, top_k: int = 3) -> list[SearchResult]:
     """
     BM25-only поиск (без семантики).
 
+    top_k=3 по умолчанию — BM25 используется для точного поиска редких термов,
+    где достаточно нескольких лучших результатов.
+
+    sparse_score_threshold из config отсекает фоновый шум (токены из других документов).
+    Исторически BM25 шумит: точный термин даёт score 1.4-8.0, а шум — 1.1-2.1.
+    Один threshold не поможет полностью (overlap), поэтому используем оба механизма.
+
     Args:
-        query: текст запроса
-        top_k: сколько результатов вернуть
+        query: текст запроса (или точный термин для BM25)
+        top_k: максимальное количество результатов (default=3)
 
     Returns:
         Список SearchResult, отсортированный по BM25-score (убывание)
     """
+    cfg = get_config()
     store = get_qdrant_store()
     sparse_vec = _embed_sparse(query)
+
+    # Применяем sparse_score_threshold из config — отрезаем фоновый шум
+    threshold = cfg.search.sparse_score_threshold or None
 
     # Запрос только через BM25 (sparse-ветка)
     points = store.client.query_points(
@@ -39,6 +50,7 @@ def bm25_search(query: str, top_k: int = 10) -> list[SearchResult]:
         query=sparse_vec,
         using="langchain-sparse",  # только BM25
         limit=top_k,
+        score_threshold=threshold,
         with_payload=True,
     ).points
 
