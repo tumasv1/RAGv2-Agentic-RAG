@@ -1,0 +1,40 @@
+{# Retrieval: все tool-вызовы с retrieved_docs #}
+<h2>Retrieval</h2>
+{% set retrieval_tools = [] %}
+{% for t in trace.tool_calls %}
+  {% if t.retrieved_docs %}{% set _ = retrieval_tools.append(t) %}{% endif %}
+{% endfor %}
+
+{% if not retrieval_tools %}
+  <p class="muted">Tool search_knowledge_base не вызывался.</p>
+{% else %}
+  {% for t in retrieval_tools %}
+    <h3>Tool #{{ t.order }} · {{ t.name }}
+      <small class="muted">({{ "%.0f"|format(t.latency_ms) }} мс)</small>
+    </h3>
+    <div class="tool-args">
+      {% for k, v in t.args.items() %}
+        <div><strong>{{ k }}:</strong> <code>{{ v }}</code></div>
+      {% endfor %}
+    </div>
+    <table class="retrieval-table">
+      <thead>
+        <tr><th>#</th><th>Score</th><th>Source</th><th>Section</th></tr>
+      </thead>
+      <tbody>
+      {% for d in t.retrieved_docs %}
+        <tr>
+          <td>{{ d.index }}</td>
+          <td>
+            <div class="score-bar" style="--w: {{ (d.score * 100)|round(0, 'floor') }}%">
+              <span>{{ "%.4f"|format(d.score) }}</span>
+            </div>
+          </td>
+          <td><code>{{ d.source }}</code></td>
+          <td><small>{{ d.section }}</small></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+{% endif %}

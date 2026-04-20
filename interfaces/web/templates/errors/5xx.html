@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Ошибка {{ status_code }} — RAGv2{% endblock %}
+
+{% block content %}
+<section class="error-page">
+  <h1>Ошибка {{ status_code }}</h1>
+  <div class="banner error">{{ message }}</div>
+  <p><a href="/">На главную</a></p>
+</section>
+{% endblock %}

@@ -1,0 +1,193 @@
+/* ────────────────────────────────────────────────────────────────────── */
+/*  Общие утилиты                                                         */
+/* ────────────────────────────────────────────────────────────────────── */
+
+async function postJSON(url, body) {
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body || {}),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const msg = (data && data.message) || resp.statusText || "Ошибка запроса";
+    const err = new Error(msg);
+    err.status = resp.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+async function getJSON(url) {
+  const resp = await fetch(url, { credentials: "same-origin" });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const err = new Error((data && data.message) || resp.statusText);
+    err.status = resp.status;
+    throw err;
+  }
+  return data;
+}
+
+function show(el) { el.classList.remove("hidden"); }
+function hide(el) { el.classList.add("hidden"); }
+function setBanner(el, kind, msg) {
+  el.className = "banner " + kind;
+  el.textContent = msg;
+  show(el);
+}
+
+/* ────────────────────────────────────────────────────────────────────── */
+/*  Чат: /                                                                */
+/* ────────────────────────────────────────────────────────────────────── */
+
+function initChat() {
+  const form = document.getElementById("chat-form");
+  const qTa = document.getElementById("question");
+  const loader = document.getElementById("loader");
+  const banner = document.getElementById("banner");
+  const answer = document.getElementById("answer");
+  const answerText = document.getElementById("answer-text");
+  const answerSources = document.getElementById("answer-sources");
+  const answerMeta = document.getElementById("answer-meta");
+  const threadIdEl = document.getElementById("thread-id");
+  const resetBtn = document.getElementById("reset-thread-btn");
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const question = qTa.value.trim();
+    if (!question) return;
+
+    hide(answer); hide(banner); show(loader);
+
+    try {
+      const data = await postJSON("/api/ask", { question });
+      answerText.textContent = data.answer || "(пустой ответ)";
+      answerSources.innerHTML = "";
+      (data.sources || []).forEach(s => {
+        const li = document.createElement("li");
+        li.innerHTML = `<code>${escapeHtml(s)}</code>`;
+        answerSources.appendChild(li);
+      });
+      answerMeta.textContent =
+        `итераций: ${data.iterations} · чанков: ${data.chunks_used} · ` +
+        `confidence: ${data.confidence.toFixed(2)} · ${data.latency_ms.toFixed(0)} мс`;
+      threadIdEl.textContent = data.thread_id;
+
+      if (!data.has_answer) {
+        setBanner(banner, "warning", "Агент не нашёл ответ в базе знаний. Попробуй переформулировать.");
+      }
+      show(answer);
+    } catch (e) {
+      setBanner(banner, "error", `${e.message}${e.status ? ` (HTTP ${e.status})` : ""}`);
+    } finally {
+      hide(loader);
+    }
+  });
+
+  resetBtn.addEventListener("click", async () => {
+    try {
+      const data = await postJSON("/api/thread/reset");
+      threadIdEl.textContent = data.thread_id;
+      hide(answer); hide(banner);
+      setBanner(banner, "info", "Сессия сброшена. Новый thread_id: " + data.thread_id);
+    } catch (e) {
+      setBanner(banner, "error", e.message);
+    }
+  });
+}
+
+/* ────────────────────────────────────────────────────────────────────── */
+/*  Admin: /admin                                                         */
+/* ────────────────────────────────────────────────────────────────────── */
+
+function initAdmin() {
+  const btnInc = document.getElementById("reindex-incremental");
+  const btnForce = document.getElementById("reindex-force");
+  const banner = document.getElementById("reindex-banner");
+  const statusLabel = document.getElementById("status-label");
+  const jobIdEl = document.getElementById("status-jobid");
+  const startedEl = document.getElementById("status-started");
+  const finishedEl = document.getElementById("status-finished");
+  const statsBlock = document.getElementById("status-stats");
+  const errorBlock = document.getElementById("status-error");
+
+  let pollTimer = null;
+
+  async function refreshStatus() {
+    try {
+      const s = await getJSON("/api/reindex/status");
+      statusLabel.textContent = s.status;
+      jobIdEl.textContent = s.job_id || "—";
+      startedEl.textContent = s.started_at ? new Date(s.started_at * 1000).toLocaleString() : "—";
+      finishedEl.textContent = s.finished_at ? new Date(s.finished_at * 1000).toLocaleString() : "—";
+
+      if (s.stats) {
+        document.getElementById("stats-added").textContent = s.stats.added;
+        document.getElementById("stats-updated").textContent = s.stats.updated;
+        document.getElementById("stats-deleted").textContent = s.stats.deleted;
+        document.getElementById("stats-unchanged").textContent = s.stats.unchanged;
+        document.getElementById("stats-chunks").textContent = s.stats.total_chunks;
+        show(statsBlock);
+      } else {
+        hide(statsBlock);
+      }
+
+      if (s.error) {
+        errorBlock.textContent = "Ошибка: " + s.error;
+        show(errorBlock);
+      } else {
+        hide(errorBlock);
+      }
+
+      // если идёт — продолжаем поллинг; иначе — останавливаем
+      if (s.status === "running") {
+        if (!pollTimer) pollTimer = setInterval(refreshStatus, 5000);
+      } else if (pollTimer) {
+        clearInterval(pollTimer); pollTimer = null;
+      }
+    } catch (e) {
+      setBanner(banner, "error", "Не удалось получить статус: " + e.message);
+    }
+  }
+
+  async function triggerReindex(force) {
+    hide(banner);
+    try {
+      const data = await postJSON("/api/reindex?force=" + (force ? "true" : "false"));
+      setBanner(banner, "info", `Запущена индексация. job_id: ${data.job_id}`);
+      refreshStatus();
+    } catch (e) {
+      if (e.status === 409) {
+        setBanner(banner, "warning", "Индексация уже запущена. Дождись завершения.");
+      } else {
+        setBanner(banner, "error", e.message);
+      }
+    }
+  }
+
+  btnInc.addEventListener("click", () => triggerReindex(false));
+  btnForce.addEventListener("click", () => {
+    if (confirm("Полная переиндексация пересоберёт весь индекс. Продолжить?")) {
+      triggerReindex(true);
+    }
+  });
+
+  // первый вызов + автоподхват running-задачи
+  refreshStatus();
+}
+
+/* ────────────────────────────────────────────────────────────────────── */
+/*  helpers                                                               */
+/* ────────────────────────────────────────────────────────────────────── */
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}

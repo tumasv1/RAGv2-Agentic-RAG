@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Debug — RAGv2{% endblock %}
+
+{% block head_extra %}
+{% if mermaid_src %}
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "default" });
+</script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="debug">
+  <h1>Debug dashboard</h1>
+  <p class="muted">Трейс LLM-вызовов, retrieval, latency breakdown. Аналог <code>notebooks/debug.ipynb</code>.</p>
+
+  <form method="post" action="/debug" class="debug-form">
+    <label>
+      Вопрос
+      <textarea name="question" rows="3" maxlength="4000" required>{{ trace.question if trace else "" }}</textarea>
+    </label>
+    <label>
+      Thread ID <span class="muted">(пусто → из cookie)</span>
+      <input type="text" name="thread_id" value="{{ thread_id or '' }}">
+    </label>
+    <button type="submit" class="btn-primary">Run debug</button>
+  </form>
+
+  {% if error %}
+    <div class="banner error">{{ error }}</div>
+  {% endif %}
+
+  {% if trace %}
+    {% include "_trace_summary.html" %}
+    {% include "_trace_retrieval.html" %}
+    {% include "_trace_llm.html" %}
+    {% include "_trace_latency.html" %}
+
+    <h2>Финальный ответ</h2>
+    <article class="answer">
+      <div class="answer-text">{{ response.answer }}</div>
+      {% if response.sources %}
+        <ul class="sources">
+          {% for s in response.sources %}<li><code>{{ s }}</code></li>{% endfor %}
+        </ul>
+      {% endif %}
+    </article>
+
+    <h2>JSON трейса</h2>
+    <details>
+      <summary>Показать / скрыть</summary>
+      <pre class="json-dump">{{ trace_json }}</pre>
+    </details>
+
+    {% if mermaid_src %}
+      <h2>Граф агента (Mermaid)</h2>
+      <pre class="mermaid">{{ mermaid_src }}</pre>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

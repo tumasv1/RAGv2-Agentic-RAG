@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Admin — RAGv2{% endblock %}
+
+{% block content %}
+<section class="admin">
+  <h1>Переиндексация</h1>
+  <p class="muted">
+    Инкрементальная: обработаются только изменённые файлы (по mtime).
+    Полная: пересобирает весь индекс с нуля.
+  </p>
+
+  <div class="row">
+    <button id="reindex-incremental" class="btn-primary">Инкрементальная</button>
+    <button id="reindex-force" class="btn-danger">Полная (force)</button>
+  </div>
+
+  <div id="reindex-banner" class="banner hidden"></div>
+
+  <h2>Статус</h2>
+  <div id="reindex-status" class="status-card">
+    <div><strong>Статус:</strong> <span id="status-label">—</span></div>
+    <div><strong>Job ID:</strong> <code id="status-jobid">—</code></div>
+    <div><strong>Старт:</strong> <span id="status-started">—</span></div>
+    <div><strong>Финиш:</strong> <span id="status-finished">—</span></div>
+    <div id="status-stats" class="hidden">
+      <strong>Статистика:</strong>
+      <ul>
+        <li>Добавлено: <span id="stats-added">0</span></li>
+        <li>Обновлено: <span id="stats-updated">0</span></li>
+        <li>Удалено: <span id="stats-deleted">0</span></li>
+        <li>Без изменений: <span id="stats-unchanged">0</span></li>
+        <li>Всего чанков: <span id="stats-chunks">0</span></li>
+      </ul>
+    </div>
+    <div id="status-error" class="hidden banner error"></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/app.js') }}"></script>
+<script>
+  initAdmin();
+</script>
+{% endblock %}
