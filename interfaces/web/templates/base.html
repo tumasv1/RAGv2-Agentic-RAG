@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
   {% block head_extra %}{% endblock %}
 </head>
-<body>
+<body{% block body_attrs %}{% endblock %}>
   <header class="topbar">
     <div class="topbar-inner">
       <a href="/" class="brand">RAGv2</a>

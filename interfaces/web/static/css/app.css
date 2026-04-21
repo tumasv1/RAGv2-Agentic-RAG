@@ -94,9 +94,105 @@ label { display: block; margin-bottom: .7rem; font-size: .9rem; color: #374151; 
 .row { display: flex; align-items: center; gap: 1rem; margin-top: .6rem; }
 
 /* ── Чат ─────────────────────────────────────────────────────────────── */
-.chat-form { margin: 1rem 0; }
-.chat-form textarea { min-height: 80px; }
+.chat-header { margin-bottom: .5rem; }
+.chat-header h1 { margin-bottom: .2rem; }
 
+/* Лента сообщений */
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  margin: .8rem 0;
+  min-height: 40px;
+}
+
+/* Обёртка одного сообщения — выравнивает пузырёк */
+.chat-msg {
+  display: flex;
+}
+.chat-msg--user  { justify-content: flex-end; }
+.chat-msg--agent { justify-content: flex-start; }
+
+/* Пузырёк */
+.chat-bubble {
+  max-width: 75%;
+  padding: .65rem .85rem;
+  border-radius: 14px;
+  line-height: 1.5;
+}
+.chat-msg--user  .chat-bubble {
+  background: #2563eb;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-msg--agent .chat-bubble {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #111827;
+  border-bottom-left-radius: 4px;
+}
+
+.bubble-text { white-space: pre-wrap; }
+
+.bubble-sources {
+  font-size: .82rem;
+  color: #6b7280;
+  padding-left: 1.1rem;
+  margin: .45rem 0 0;
+  border-top: 1px solid #f0f0f0;
+  padding-top: .35rem;
+}
+.chat-msg--user .bubble-sources { color: rgba(255,255,255,.75); border-top-color: rgba(255,255,255,.25); }
+
+.bubble-meta {
+  font-size: .78rem;
+  color: #9ca3af;
+  margin-top: .3rem;
+}
+.chat-msg--user .bubble-meta { color: rgba(255,255,255,.6); }
+
+/* Поле ввода */
+.chat-input-area { margin-top: .8rem; }
+.chat-input-area textarea { min-height: 64px; resize: none; }
+.chat-input-row { display: flex; align-items: center; gap: 1rem; margin-top: .5rem; }
+
+/* ── Чат: полноэкранный layout (класс на body) ───────────────────────── */
+body.chat-page {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+body.chat-page .container {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin-top: 0;
+  padding-top: .8rem;
+  padding-bottom: 0;
+}
+body.chat-page .footer { display: none; }
+body.chat-page section.chat {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+body.chat-page #chat-history {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: .3rem;
+}
+body.chat-page .chat-input-area {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: .6rem 0 .8rem;
+  background: #f7f7f8;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Сохраняем .answer для страницы /debug */
 .answer {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -196,6 +292,128 @@ table.kv th { width: 180px; background: #f9fafb; }
 .tool-args { font-size: .85rem; color: #374151; margin: .3rem 0 .5rem; }
 
 .json-dump { max-height: 500px; overflow: auto; font-size: .78rem; }
+
+/* ── Timeline (Debug) ─────────────────────────────────────────────── */
+.timeline { display: flex; flex-direction: column; gap: .6rem; margin: .6rem 0; }
+
+.tl-item {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #e5e7eb;
+  border-radius: 8px;
+  padding: .7rem 1rem;
+}
+.tl-llm  { border-left-color: #3b82f6; }
+.tl-tool { border-left-color: #10b981; }
+
+.tl-header {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin-bottom: .45rem;
+  flex-wrap: wrap;
+}
+.tl-badge {
+  font-size: .7rem;
+  font-weight: 700;
+  padding: .12rem .4rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.badge-llm  { background: #dbeafe; color: #1d4ed8; }
+.badge-tool { background: #d1fae5; color: #065f46; }
+
+/* Сворачиваемый блок входящих сообщений */
+.tl-messages { font-size: .85rem; margin: .3rem 0; }
+.tl-messages > summary {
+  cursor: pointer;
+  color: #6b7280;
+  user-select: none;
+  padding: .15rem 0;
+}
+
+.msg-list {
+  border-left: 2px solid #e5e7eb;
+  margin: .4rem 0 .4rem .5rem;
+  padding-left: .7rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.msg-item { font-size: .83rem; }
+.msg-badge {
+  display: inline-block;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: .1rem .32rem;
+  border-radius: 3px;
+  margin-right: .4rem;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.msg-system .msg-badge { background: #f3f4f6; color: #374151; }
+.msg-human  .msg-badge { background: #dbeafe; color: #1d4ed8; }
+.msg-ai     .msg-badge { background: #ede9fe; color: #5b21b6; }
+.msg-tool   .msg-badge { background: #d1fae5; color: #065f46; }
+
+.msg-body {
+  margin: .2rem 0 0;
+  font-size: .79rem;
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow: auto;
+  background: #f9fafb;
+  border: 1px solid #eceef0;
+  border-radius: 4px;
+  padding: .3rem .5rem;
+}
+.msg-collapse > summary { cursor: pointer; color: #6b7280; font-size: .8rem; }
+.msg-tool-name { font-size: .77rem; color: #6b7280; margin-right: .3rem; }
+.tool-call-ref {
+  display: block;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: .8rem;
+  color: #2563eb;
+  margin: .1rem 0;
+}
+
+/* Блок вывода LLM (tool_calls или текст ответа) */
+.tl-output {
+  margin-top: .5rem;
+  padding-top: .4rem;
+  border-top: 1px solid #f0f0f0;
+}
+.tl-label {
+  display: inline-block;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: .25rem;
+}
+.tool-call-item {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  margin: .25rem 0;
+  flex-wrap: wrap;
+}
+.tool-call-name { font-weight: 600; color: #2563eb; font-size: .88rem; }
+.tool-call-args {
+  font-size: .79rem;
+  background: #eff6ff;
+  padding: .15rem .4rem;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+/* Параметры tool-вызова */
+.tl-args { font-size: .87rem; color: #374151; margin: .3rem 0 .4rem; }
+
+/* Блок новых сообщений (дельта) — без отступа слева, чуть светлее граница */
+.msg-delta { border-left-color: #bfdbfe; margin-left: 0; }
 
 /* ── Admin ────────────────────────────────────────────────────────────── */
 .status-card {

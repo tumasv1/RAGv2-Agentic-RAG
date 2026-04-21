@@ -22,7 +22,7 @@ from langchain_openai import ChatOpenAI
 from ragas import RunConfig, evaluate
 from ragas.embeddings import LangchainEmbeddingsWrapper
 from ragas.llms import LangchainLLMWrapper
-from ragas.metrics import (
+from ragas.metrics import (  # noqa: E402  (deprecated singletons, работают до ragas v1.0)
     answer_relevancy,
     context_precision,
     context_recall,
@@ -34,10 +34,6 @@ from retriever.embeddings import get_embeddings
 
 # OpenRouter — OpenAI-совместимый API-агрегатор
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-
-# список метрик, которые вычисляем (можно расширить)
-METRICS = [faithfulness, answer_relevancy, context_precision, context_recall]
-
 
 def setup_ragas_judge_llm() -> LangchainLLMWrapper:
     """
@@ -82,11 +78,19 @@ def compute_metrics(dataset: Dataset) -> dict:
     # По умолчанию RAGAS запускает слишком много параллельных запросов → TimeoutError.
     run_cfg = RunConfig(max_workers=4, timeout=240)
 
+    # column_map: страховка от тихих NaN — RAGAS 0.4.x ожидает user_input/response/retrieved_contexts/reference,
+    # но наш датасет содержит старые имена (question/answer/contexts/ground_truth из datasets.Dataset).
     result = evaluate(
         dataset,
-        metrics=METRICS,
+        metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
         llm=ragas_llm,
         embeddings=ragas_emb,
         run_config=run_cfg,
+        column_map={
+            "user_input": "question",
+            "response": "answer",
+            "retrieved_contexts": "contexts",
+            "reference": "ground_truth",
+        },
     )
     return result

@@ -4,11 +4,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import Request, Response
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 
 # ── Jinja2-шаблоны (синглтон) ───────────────────────────────────────────────
@@ -17,11 +19,17 @@ _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _templates: Jinja2Templates | None = None
 
 
+def _tojson_u(value: object) -> Markup:
+    """Фильтр tojson без ASCII-экранирования — кириллица отображается как есть."""
+    return Markup(json.dumps(value, ensure_ascii=False))
+
+
 def get_templates() -> Jinja2Templates:
     """Возвращает синглтон Jinja2Templates для папки interfaces/web/templates/."""
     global _templates
     if _templates is None:
         _templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+        _templates.env.filters["tojson_u"] = _tojson_u
     return _templates
 
 

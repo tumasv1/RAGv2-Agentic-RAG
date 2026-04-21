@@ -147,7 +147,7 @@ def ask(
         result = graph.invoke(
             {
                 "messages": [
-                    SystemMessage(content=SYSTEM_PROMPT),
+                    SystemMessage(content=SYSTEM_PROMPT, id="system-prompt"),
                     ("user", question),
                 ],
                 "iteration_count": 0,
@@ -159,7 +159,6 @@ def ask(
         return AgentResponse(
             answer=f"Произошла ошибка при обработке запроса: {e}",
             sources=[],
-            confidence=0.0,
             has_answer=False,
         )
 
@@ -178,7 +177,6 @@ def ask(
     return AgentResponse(
         answer=answer_text,
         sources=sources,
-        confidence=0.8 if sources else 0.0,  # упрощённая оценка для MVP
         has_answer=bool(sources),
         iterations=iterations,
         chunks_used=chunks_used,
@@ -224,7 +222,7 @@ def ask_debug(
         result = graph.invoke(
             {
                 "messages": [
-                    SystemMessage(content=SYSTEM_PROMPT),
+                    SystemMessage(content=SYSTEM_PROMPT, id="system-prompt"),
                     ("user", question),
                 ],
                 "iteration_count": 0,
@@ -236,7 +234,6 @@ def ask_debug(
         error_response = AgentResponse(
             answer=f"Произошла ошибка при обработке запроса: {e}",
             sources=[],
-            confidence=0.0,
             has_answer=False,
         )
         trace = tracer.build_trace(question, thread_id, error_response, 0.0)
@@ -294,9 +291,6 @@ def _extract_sources(text: str) -> list[str]:
         cleaned = s.strip().strip("-•* `").rstrip(".")
         if not cleaned or cleaned == "—":
             continue
-        # добавляем .md если его нет
-        if not cleaned.endswith(".md"):
-            cleaned += ".md"
         sources.append(cleaned)
     return sources
 
@@ -334,5 +328,4 @@ if __name__ == "__main__":
     print(f"\nИсточники: {response.sources}")
     print(f"Итераций: {response.iterations}")
     print(f"Чанков в контексте: {response.chunks_used}")
-    print(f"Уверенность: {response.confidence}")
     print(f"Есть ответ: {response.has_answer}")

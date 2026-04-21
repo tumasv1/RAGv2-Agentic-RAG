@@ -1,0 +1,146 @@
+{# Хронологическая цепочка вызовов: LLM ↔ Tool, отсортированы по started_at #}
+<h2>Цепочка вызовов</h2>
+{% if not timeline %}
+  <p class="muted">Нет событий.</p>
+{% else %}
+<div class="timeline">
+{% for ev in timeline %}
+
+  {# ── LLM-вызов ───────────────────────────────────────────────────── #}
+  {% if ev.type == "llm" %}
+  <div class="tl-item tl-llm">
+    <div class="tl-header">
+      <span class="tl-badge badge-llm">LLM</span>
+      <strong>#{{ ev.index }} · {{ ev.node }}</strong>
+      <span class="muted">{{ "%.0f"|format(ev.latency_ms) }} мс</span>
+    </div>
+
+    {# Новые сообщения (дельта с предыдущего LLM-вызова) — главный блок #}
+    {% if ev.messages_delta %}
+    <div class="msg-list msg-delta">
+      {% for m in ev.messages_delta %}
+      <div class="msg-item msg-{{ m.role }}">
+        <span class="msg-badge">{{ m.role }}</span>
+        {% if m.role == "system" %}
+          <details class="msg-collapse">
+            <summary>system prompt</summary>
+            <pre class="msg-body">{{ m.content }}</pre>
+          </details>
+        {% elif m.role == "ai" and m.tool_calls %}
+          {% for tc in m.tool_calls %}
+            <span class="tool-call-ref">→ {{ tc.name }}({{ tc.args|tojson_u }})</span>
+          {% endfor %}
+        {% else %}
+          {% if m.role == "tool" and m.tool_name %}
+            <span class="msg-tool-name">[{{ m.tool_name }}]</span>
+          {% endif %}
+          <pre class="msg-body">{{ m.content|truncate(600, true, "…") }}</pre>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Весь контекст (история) — свёрнуто #}
+    {% if ev.messages_in|length > ev.messages_delta|length %}
+    <details class="tl-messages">
+      <summary>Весь контекст: {{ ev.messages_in|length }} сообщений (+{{ ev.messages_in|length - ev.messages_delta|length }} из истории)</summary>
+      <div class="msg-list">
+        {% for m in ev.messages_in %}
+        <div class="msg-item msg-{{ m.role }}">
+          <span class="msg-badge">{{ m.role }}</span>
+          {% if m.role == "system" %}
+            <details class="msg-collapse">
+              <summary>system prompt</summary>
+              <pre class="msg-body">{{ m.content }}</pre>
+            </details>
+          {% elif m.role == "ai" and m.tool_calls %}
+            {% for tc in m.tool_calls %}
+              <span class="tool-call-ref">→ {{ tc.name }}({{ tc.args|tojson_u }})</span>
+            {% endfor %}
+          {% else %}
+            {% if m.role == "tool" and m.tool_name %}
+              <span class="msg-tool-name">[{{ m.tool_name }}]</span>
+            {% endif %}
+            <pre class="msg-body">{{ m.content|truncate(600, true, "…") }}</pre>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+
+    {# Результат LLM: либо вызовы инструментов, либо текстовый ответ #}
+    {% if ev.tool_calls %}
+    <div class="tl-output">
+      <div class="tl-label">Вызывает инструменты:</div>
+      {% for tc in ev.tool_calls %}
+      <div class="tool-call-item">
+        <span class="tool-call-name">{{ tc.name }}</span>
+        <code class="tool-call-args">{{ tc.args|tojson_u }}</code>
+      </div>
+      {% endfor %}
+    </div>
+    {% elif ev.response %}
+    <div class="tl-output">
+      <div class="tl-label">Ответ LLM:</div>
+      <pre class="llm-response">{{ ev.response|truncate(3000, true, "…") }}</pre>
+    </div>
+    {% else %}
+    <p class="muted tl-output"><em>Ответ пустой (агент пропустил генерацию)</em></p>
+    {% endif %}
+  </div>
+
+  {# ── Tool-вызов ──────────────────────────────────────────────────── #}
+  {% elif ev.type == "tool" %}
+  <div class="tl-item tl-tool">
+    <div class="tl-header">
+      <span class="tl-badge badge-tool">Tool</span>
+      <strong>#{{ ev.order }} · {{ ev.name }}</strong>
+      <span class="muted">{{ "%.0f"|format(ev.latency_ms) }} мс</span>
+    </div>
+
+    {# Параметры вызова #}
+    {% if ev.args %}
+    <div class="tl-args">
+      {% for k, v in ev.args.items() %}
+        <span class="tl-label">{{ k }}:</span> <code>{{ v }}</code>&ensp;
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Результат: для search_knowledge_base — таблица чанков; для остальных — текст #}
+    {% if ev.retrieved_docs %}
+    <table class="retrieval-table">
+      <thead>
+        <tr><th>#</th><th>Score</th><th>Источник</th><th>Раздел</th></tr>
+      </thead>
+      <tbody>
+      {% for d in ev.retrieved_docs %}
+        <tr>
+          <td>{{ d.index }}</td>
+          <td>
+            <div class="score-bar" style="--w: {{ (d.score * 100)|round(0, 'floor') }}%">
+              <span>{{ "%.4f"|format(d.score) }}</span>
+            </div>
+          </td>
+          <td><code>{{ d.source }}</code></td>
+          <td><small>{{ d.section }}</small></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% elif ev.name == "search_knowledge_base" %}
+      <p class="muted">Поиск не вернул результатов.</p>
+    {% else %}
+    <details>
+      <summary class="muted">Результат</summary>
+      <pre class="llm-response">{{ ev.result|truncate(1000, true, "…") }}</pre>
+    </details>
+    {% endif %}
+  </div>
+
+{% endif %}
+{% endfor %}
+</div>
+{% endif %}

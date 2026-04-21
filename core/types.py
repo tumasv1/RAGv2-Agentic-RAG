@@ -63,9 +63,6 @@ class AgentResponse(BaseModel):
     sources: list[str] = Field(                # имена файлов-источников
         default_factory=list,
     )
-    confidence: float = Field(                 # уверенность ответа (0.0 — 1.0)
-        ge=0.0, le=1.0,
-    )
     has_answer: bool                           # нашёлся ли ответ в базе знаний
     iterations: int = 0                        # сколько итераций агент сделал
     chunks_used: int = 0                       # сколько чанков попало в контекст LLM

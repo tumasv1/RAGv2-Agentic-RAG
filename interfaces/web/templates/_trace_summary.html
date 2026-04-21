@@ -6,7 +6,6 @@
   <tr><th>Total latency</th><td>{{ "%.0f"|format(trace.total_latency_ms) }} мс</td></tr>
   <tr><th>Iterations</th><td>{{ trace.iterations }}</td></tr>
   <tr><th>Chunks used</th><td>{{ trace.chunks_used }}</td></tr>
-  <tr><th>Confidence</th><td>{{ "%.2f"|format(response.confidence) if response else "—" }}</td></tr>
   <tr><th>Has answer</th><td>{{ "да" if response and response.has_answer else "нет" }}</td></tr>
   <tr><th>Sources</th><td>
     {% if trace.sources %}
