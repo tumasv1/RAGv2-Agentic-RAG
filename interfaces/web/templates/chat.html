@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
 {% block body_attrs %} class="chat-page"{% endblock %}
-{% block title %}Чат — RAGv2{% endblock %}
+{% block title %}Chat — Agentic RAG{% endblock %}
 
 {% block content %}
 <section class="chat">
   <div class="chat-header">
-    <h1>Спроси агента</h1>
-    <p class="muted">Thread: <code id="thread-id">{{ thread_id }}</code>
-      <button id="reset-thread-btn" type="button" class="btn-ghost">Сбросить сессию</button>
+    <p class="muted">
+      Thread: <code id="thread-id">{{ thread_id }}</code>
+      <button id="reset-thread-btn" type="button" class="btn-ghost">New chat</button>
     </p>
   </div>
 
@@ -17,19 +17,20 @@
   <div id="banner" class="banner hidden"></div>
 
   <form id="chat-form" class="chat-input-area">
-    <textarea id="question" name="question" rows="2" maxlength="4000" required
-              placeholder="Задай вопрос…"></textarea>
-    <div class="chat-input-row">
-      <button type="submit" class="btn-primary">Отправить</button>
-      <span id="loader" class="loader hidden">обрабатываю…</span>
+    <div class="input-box">
+      <textarea id="question" name="question" rows="1" maxlength="4000" required
+                placeholder="Задай вопрос…"></textarea>
+      <button type="submit" class="btn-send" aria-label="Отправить" title="Отправить (Enter)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+      </button>
     </div>
+    <span id="loader" class="loader hidden">обрабатываю…</span>
   </form>
 </section>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', path='js/app.js') }}"></script>
-<script>
-  initChat();
-</script>
+<script>initChat();</script>
 {% endblock %}

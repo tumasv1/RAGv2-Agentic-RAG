@@ -1,0 +1,262 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Theme: Geometric Tech Minimalism
+   Активируется классом body.theme-geo
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── База ────────────────────────────────────────────────────────────── */
+body.theme-geo {
+  background: #080b11;
+  color: #c4d0e0;
+}
+
+/* ── Топбар ──────────────────────────────────────────────────────────── */
+body.theme-geo .topbar {
+  background: rgba(8, 11, 17, 0.96);
+  border-bottom: 1px solid rgba(0, 210, 255, 0.1);
+  box-shadow: 0 1px 40px rgba(0, 210, 255, 0.03);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+body.theme-geo .brand {
+  color: #00d2ff;
+  letter-spacing: .12em;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: .9rem;
+}
+body.theme-geo .nav a { color: rgba(196, 208, 224, 0.38); }
+body.theme-geo .nav a:hover { color: rgba(196, 208, 224, 0.75); text-decoration: none; }
+body.theme-geo .nav a.active { color: #00d2ff; }
+
+/* ── Контейнер ───────────────────────────────────────────────────────── */
+body.theme-geo.chat-page .container { background: transparent; }
+
+/* ── Chat header ─────────────────────────────────────────────────────── */
+body.theme-geo .chat-header h1 {
+  font-size: .75rem;
+  font-weight: 400;
+  color: rgba(196, 208, 224, 0.28);
+  text-transform: uppercase;
+  letter-spacing: .22em;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  margin-bottom: .05rem;
+}
+body.theme-geo .chat-header .muted {
+  color: rgba(196, 208, 224, 0.2);
+  font-size: .78rem;
+}
+body.theme-geo .chat-header code {
+  background: rgba(0, 210, 255, 0.07);
+  color: rgba(0, 210, 255, 0.55);
+  border: 1px solid rgba(0, 210, 255, 0.12);
+  font-size: .76rem;
+}
+
+/* ── История сообщений ───────────────────────────────────────────────── */
+body.theme-geo #chat-history {
+  position: relative;
+  padding: .5rem 0;
+  background-image:
+    linear-gradient(rgba(0, 210, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 210, 255, 0.022) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Пустое состояние */
+body.theme-geo #chat-history:empty::after {
+  content: "◈";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 5rem;
+  color: rgba(0, 210, 255, 0.05);
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: 0;
+}
+
+/* Скроллбар */
+body.theme-geo #chat-history::-webkit-scrollbar { width: 3px; }
+body.theme-geo #chat-history::-webkit-scrollbar-track { background: transparent; }
+body.theme-geo #chat-history::-webkit-scrollbar-thumb {
+  background: rgba(0, 210, 255, 0.18);
+  border-radius: 2px;
+}
+
+/* ── Пузырёк пользователя ────────────────────────────────────────────── */
+body.theme-geo .chat-msg--user .chat-bubble {
+  background: linear-gradient(135deg, #0ea5e9 0%, #1d4ed8 55%, #5b21b6 100%);
+  border: none;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow:
+    0 4px 28px rgba(14, 165, 233, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* ── Пузырёк агента ──────────────────────────────────────────────────── */
+body.theme-geo .chat-msg--agent .chat-bubble {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px 18px 18px 4px;
+  color: #c4d0e0;
+  position: relative;
+}
+
+/* Геометрический акцент — угловые линии */
+body.theme-geo .chat-msg--agent .chat-bubble::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: -1px;
+  width: 20px; height: 20px;
+  border-top: 1.5px solid rgba(0, 210, 255, 0.55);
+  border-left: 1.5px solid rgba(0, 210, 255, 0.55);
+  border-radius: 4px 0 0 0;
+  pointer-events: none;
+}
+body.theme-geo .chat-msg--agent .chat-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -1px; right: -1px;
+  width: 10px; height: 10px;
+  border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+  border-right: 1px solid rgba(0, 210, 255, 0.2);
+  border-radius: 0 0 4px 0;
+  pointer-events: none;
+}
+
+/* ── Источники и мета ────────────────────────────────────────────────── */
+body.theme-geo .bubble-sources {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(196, 208, 224, 0.3);
+  list-style: none;
+  padding-left: 0;
+  padding-top: .4rem;
+}
+body.theme-geo .bubble-sources li { padding: .1rem 0; }
+body.theme-geo .bubble-sources li::before {
+  content: "›  ";
+  color: rgba(0, 210, 255, 0.35);
+}
+body.theme-geo .bubble-sources code {
+  background: rgba(0, 210, 255, 0.06);
+  color: rgba(0, 210, 255, 0.5);
+  border: none;
+  font-size: .76rem;
+}
+body.theme-geo .bubble-meta {
+  color: rgba(196, 208, 224, 0.18);
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: .7rem;
+  letter-spacing: .03em;
+  margin-top: .35rem;
+}
+
+/* ── Поле ввода ──────────────────────────────────────────────────────── */
+body.theme-geo.chat-page .chat-input-area {
+  background: #080b11;
+  border-top: 1px solid rgba(0, 210, 255, 0.08);
+}
+body.theme-geo .input-box {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+body.theme-geo .input-box:focus-within {
+  border-color: rgba(0, 210, 255, 0.4);
+  box-shadow: 0 0 0 3px rgba(0, 210, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
+}
+body.theme-geo .input-box textarea {
+  background: transparent;
+  color: #c4d0e0;
+  caret-color: #00d2ff;
+}
+body.theme-geo .input-box textarea::placeholder {
+  color: rgba(196, 208, 224, 0.22);
+}
+
+body.theme-geo .btn-send {
+  background: rgba(0, 210, 255, 0.12);
+  color: #00d2ff;
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  border-radius: 10px;
+}
+body.theme-geo .btn-send:hover {
+  background: rgba(0, 210, 255, 0.22);
+  border-color: rgba(0, 210, 255, 0.7);
+  box-shadow: 0 0 14px rgba(0, 210, 255, 0.18);
+}
+
+/* ── Кнопки ──────────────────────────────────────────────────────────── */
+body.theme-geo .btn-primary {
+  background: transparent;
+  border: 1px solid rgba(0, 210, 255, 0.3);
+  color: #00d2ff;
+  border-radius: 8px;
+  letter-spacing: .04em;
+  transition: border-color .2s, color .2s, box-shadow .2s;
+  position: relative;
+  overflow: hidden;
+}
+body.theme-geo .btn-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0, 210, 255, 0.08), rgba(29, 78, 216, 0.1));
+  opacity: 0;
+  transition: opacity .2s;
+}
+body.theme-geo .btn-primary:hover {
+  border-color: rgba(0, 210, 255, 0.65);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(0, 210, 255, 0.14);
+}
+body.theme-geo .btn-primary:hover::before { opacity: 1; }
+
+body.theme-geo .btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: rgba(196, 208, 224, 0.3);
+  transition: all .2s;
+}
+body.theme-geo .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(196, 208, 224, 0.65);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Переключатель темы в топбаре */
+body.theme-geo .theme-toggle {
+  border-color: rgba(0, 210, 255, 0.22);
+  color: rgba(0, 210, 255, 0.55);
+}
+body.theme-geo .theme-toggle:hover {
+  border-color: rgba(0, 210, 255, 0.55);
+  color: #00d2ff;
+  background: rgba(0, 210, 255, 0.05);
+}
+
+/* ── Баннеры ─────────────────────────────────────────────────────────── */
+body.theme-geo .loader {
+  color: rgba(0, 210, 255, 0.5);
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: .8rem;
+}
+body.theme-geo .banner.error {
+  background: rgba(220, 38, 38, 0.07);
+  border: 1px solid rgba(220, 38, 38, 0.22);
+  color: #fca5a5;
+}
+body.theme-geo .banner.info {
+  background: rgba(0, 210, 255, 0.05);
+  border: 1px solid rgba(0, 210, 255, 0.18);
+  color: rgba(0, 210, 255, 0.75);
+}
+body.theme-geo .banner.warning {
+  background: rgba(245, 158, 11, 0.07);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+}

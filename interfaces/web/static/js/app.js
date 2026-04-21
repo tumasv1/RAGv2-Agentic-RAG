@@ -40,6 +40,34 @@ function setBanner(el, kind, msg) {
 }
 
 /* ────────────────────────────────────────────────────────────────────── */
+/*  Переключатель темы (работает на всех страницах)                        */
+/* ────────────────────────────────────────────────────────────────────── */
+
+const THEMES = ["default", "geo", "minimal"];
+
+function initTheme() {
+  const btn = document.getElementById("theme-toggle-btn");
+  if (!btn) return;
+
+  function apply(theme) {
+    document.body.classList.remove("theme-geo", "theme-minimal");
+    if (theme === "geo") document.body.classList.add("theme-geo");
+    if (theme === "minimal") document.body.classList.add("theme-minimal");
+    btn.textContent = theme;
+    localStorage.setItem("chat-theme", theme);
+  }
+
+  const saved = localStorage.getItem("chat-theme");
+  apply(THEMES.includes(saved) ? saved : "default");
+
+  btn.addEventListener("click", () => {
+    const current = localStorage.getItem("chat-theme") || "default";
+    const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
+    apply(next);
+  });
+}
+
+/* ────────────────────────────────────────────────────────────────────── */
 /*  Чат: /                                                                */
 /* ────────────────────────────────────────────────────────────────────── */
 
