@@ -11,7 +11,6 @@
     tools = get_tools()  # список для bind_tools() и ToolNode
 """
 
-import re
 from datetime import datetime
 
 from langchain_core.tools import tool
@@ -19,8 +18,31 @@ from langchain_core.tools import tool
 from core.types import SearchResult
 from retriever.search import search
 
-# строка "Файл: ..." из контекстного префикса — дублирует заголовок [N] filename
-_FILE_LINE_RE = re.compile(r"^Файл: [^\n]+\n", re.MULTILINE)
+
+def _format_chunk(i: int, r: SearchResult) -> str:
+    """
+    Формирует блок чанка для LLM.
+
+    Метаданные берём напрямую из r.metadata (не из тела чанка),
+    а сам текст отрезаем от префикса chunker'а по разделителю '---'.
+    """
+    # строим заголовок из метаданных
+    lines = [f"[{i}] {r.metadata.file_name} (score: {r.score:.3f})"]
+    if r.metadata.created:
+        lines.append(f"Создан: {r.metadata.created}")
+    if r.metadata.heading_hierarchy:
+        lines.append(f"Иерархия заголовков: {' > '.join(r.metadata.heading_hierarchy)}")
+    if r.metadata.type:
+        lines.append(f"Тип: {r.metadata.type}")
+    if r.metadata.tags:
+        lines.append(f"Теги: {', '.join(r.metadata.tags)}")
+
+    # убираем блок метаданных chunker'а (всё до первого "---") — он нужен для поиска,
+    # но в LLM дублировал бы то, что уже есть в заголовке
+    _, sep, text = r.content.partition("---\n")
+    body = text.strip() if sep else r.content.strip()
+
+    return "\n".join(lines) + "\n---\n" + body
 
 
 @tool
@@ -41,16 +63,7 @@ def search_knowledge_base(query: str, bm25_terms: str | None = None) -> str:
     if not results:
         return "Поиск не дал результатов. Попробуй переформулировать запрос."
 
-    # форматируем чанки для LLM — номер, файл, секция, score, текст
-    # "Файл: ..." убираем из тела чанка — имя файла уже есть в заголовке
-    chunks = []
-    for i, r in enumerate(results, 1):
-        header = f"[{i}] {r.metadata.file_name}"
-        if r.metadata.section_header:
-            header += f" > {r.metadata.section_header}"
-        header += f" (score: {r.score:.3f})"
-        content = _FILE_LINE_RE.sub("", r.content, count=1)
-        chunks.append(f"{header}\n{content}")
+    chunks = [_format_chunk(i, r) for i, r in enumerate(results, 1)]
 
     return "\n\n---\n\n".join(chunks)
 

@@ -120,6 +120,7 @@ class DebugTrace:
                     "response": e.response,
                     "tool_calls": e.tool_calls,
                     "latency_ms": e.latency_ms,
+                    "started_at": e.started_at,
                 }
                 for e in self.llm_calls
             ],
@@ -139,6 +140,7 @@ class DebugTrace:
                         for d in e.retrieved_docs
                     ],
                     "latency_ms": e.latency_ms,
+                    "started_at": e.started_at,
                 }
                 for e in self.tool_calls
             ],
@@ -329,21 +331,6 @@ class AgentTracer(BaseCallbackHandler):
         llm_calls = list(self._llm_events)
         tool_calls = sorted(self._tool_events, key=lambda t: t.order)
 
-        # on_chain_start не стреляет в этой версии LangGraph → определяем ноду
-        # постфактум по признакам ответа (надёжно для нашего конкретного графа):
-        #   - есть tool_calls в ответе           → agent
-        #   - последний вызов, нет tool_calls,
-        #     до этого были вызовы инструментов  → generate
-        #   - иначе                              → agent (ответил напрямую)
-        had_tools = bool(tool_calls)
-        for i, llm in enumerate(llm_calls):
-            if llm.tool_calls:
-                llm.node = "agent"
-            elif i == len(llm_calls) - 1 and had_tools:
-                llm.node = "generate"
-            else:
-                llm.node = "agent"
-
         return DebugTrace(
             question=question,
             thread_id=thread_id,
@@ -359,9 +346,11 @@ class AgentTracer(BaseCallbackHandler):
 
 # ── внутренние хелперы ────────────────────────────────────────────────────────
 
-# regex для парсинга строк вида: "[1] file.md > Section (score: 0.834)"
+# regex для парсинга заголовков чанков вида: "[1] file.md (score: 0.834)"
+# ^ — только начало строки, re.MULTILINE чтобы не матчить [N] внутри текста чанка
 _DOC_PATTERN = re.compile(
-    r"\[(\d+)\]\s+(.+?)(?:\s+>\s+(.+?))?\s+\(score:\s*([\d.]+)\)"
+    r"^\[(\d+)\]\s+(.+?)(?:\s+>\s+(.+?))?\s+\(score:\s*([\d.]+)\)",
+    re.MULTILINE,
 )
 
 
@@ -380,9 +369,12 @@ def _parse_retrieved_docs(result: str) -> list[RetrievedDoc]:
 
 def _format_messages(messages: list) -> list[dict]:
     """
-    Конвертирует batch messages из on_chat_model_start в список {role, content}.
+    Конвертирует batch messages из on_chat_model_start в список {role, content, ...}.
 
     messages — list[list[BaseMessage]], берём первый (единственный) batch.
+    Дополнительные поля:
+    - AI-сообщения с tool_calls: добавляем "tool_calls" список [{name, args}]
+    - Tool-сообщения: добавляем "tool_name" (имя инструмента)
     """
     if not messages or not messages[0]:
         return []
@@ -392,7 +384,19 @@ def _format_messages(messages: list) -> list[dict]:
         content = getattr(msg, "content", "")
         if isinstance(content, list):
             content = str(content)
-        result.append({"role": role, "content": str(content)})
+        entry: dict = {"role": role, "content": str(content)}
+        # AI-сообщения: захватываем tool_calls из сообщения (история диалога)
+        if role == "ai":
+            tcs = getattr(msg, "tool_calls", None)
+            if tcs:
+                entry["tool_calls"] = [
+                    {"name": tc.get("name", ""), "args": tc.get("args", {})}
+                    for tc in tcs
+                ]
+        # Tool-сообщения: захватываем имя инструмента
+        if role == "tool":
+            entry["tool_name"] = getattr(msg, "name", "") or ""
+        result.append(entry)
     return result
 
 

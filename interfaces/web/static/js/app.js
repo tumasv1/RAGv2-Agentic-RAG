@@ -48,42 +48,39 @@ function initChat() {
   const qTa = document.getElementById("question");
   const loader = document.getElementById("loader");
   const banner = document.getElementById("banner");
-  const answer = document.getElementById("answer");
-  const answerText = document.getElementById("answer-text");
-  const answerSources = document.getElementById("answer-sources");
-  const answerMeta = document.getElementById("answer-meta");
+  const history = document.getElementById("chat-history");
   const threadIdEl = document.getElementById("thread-id");
   const resetBtn = document.getElementById("reset-thread-btn");
+
+  // Enter → отправить, Shift+Enter → перенос строки
+  qTa.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && !ev.shiftKey) {
+      ev.preventDefault();
+      form.requestSubmit();
+    }
+  });
 
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const question = qTa.value.trim();
     if (!question) return;
 
-    hide(answer); hide(banner); show(loader);
+    hide(banner);
+    appendChatMsg("user", question);
+    qTa.value = "";
+    show(loader);
 
     try {
       const data = await postJSON("/api/ask", { question });
-      answerText.textContent = data.answer || "(пустой ответ)";
-      answerSources.innerHTML = "";
-      (data.sources || []).forEach(s => {
-        const li = document.createElement("li");
-        li.innerHTML = `<code>${escapeHtml(s)}</code>`;
-        answerSources.appendChild(li);
-      });
-      answerMeta.textContent =
-        `итераций: ${data.iterations} · чанков: ${data.chunks_used} · ` +
-        `confidence: ${data.confidence.toFixed(2)} · ${data.latency_ms.toFixed(0)} мс`;
       threadIdEl.textContent = data.thread_id;
 
-      if (!data.has_answer) {
-        setBanner(banner, "warning", "Агент не нашёл ответ в базе знаний. Попробуй переформулировать.");
-      }
-      show(answer);
+      const meta = `итераций: ${data.iterations} · чанков: ${data.chunks_used} · ${data.latency_ms.toFixed(0)} мс`;
+      appendChatMsg("agent", data.answer || "(пустой ответ)", data.sources || [], meta);
     } catch (e) {
       setBanner(banner, "error", `${e.message}${e.status ? ` (HTTP ${e.status})` : ""}`);
     } finally {
       hide(loader);
+      qTa.focus();
     }
   });
 
@@ -91,12 +88,49 @@ function initChat() {
     try {
       const data = await postJSON("/api/thread/reset");
       threadIdEl.textContent = data.thread_id;
-      hide(answer); hide(banner);
+      history.innerHTML = "";
+      hide(banner);
       setBanner(banner, "info", "Сессия сброшена. Новый thread_id: " + data.thread_id);
     } catch (e) {
       setBanner(banner, "error", e.message);
     }
   });
+
+  // Добавляет пузырёк сообщения в историю чата
+  function appendChatMsg(role, text, sources, meta) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "chat-msg chat-msg--" + role;
+
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble";
+
+    const textEl = document.createElement("div");
+    textEl.className = "bubble-text";
+    textEl.textContent = text;
+    bubble.appendChild(textEl);
+
+    if (sources && sources.length) {
+      const srcEl = document.createElement("ul");
+      srcEl.className = "bubble-sources";
+      sources.forEach(s => {
+        const li = document.createElement("li");
+        li.innerHTML = `<code>${escapeHtml(s)}</code>`;
+        srcEl.appendChild(li);
+      });
+      bubble.appendChild(srcEl);
+    }
+
+    if (meta) {
+      const metaEl = document.createElement("div");
+      metaEl.className = "bubble-meta";
+      metaEl.textContent = meta;
+      bubble.appendChild(metaEl);
+    }
+
+    wrapper.appendChild(bubble);
+    history.appendChild(wrapper);
+    wrapper.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────────── */

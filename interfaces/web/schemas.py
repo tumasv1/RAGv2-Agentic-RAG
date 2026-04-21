@@ -6,11 +6,17 @@ Pydantic DTO для REST-эндпоинтов.
 - При изменении внутренних типов (core.types) внешнее API не ломается.
 """
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from core.types import AgentResponse
+
+
+def _strip_sources_line(text: str) -> str:
+    """Убирает строку 'Источники: ...' из конца ответа LLM."""
+    return re.sub(r"\n*[Ии]сточники:.*", "", text, flags=re.DOTALL).rstrip()
 
 
 # ── Чат: ask / ask_debug ──────────────────────────────────────────────────────
@@ -26,7 +32,6 @@ class AskResponse(BaseModel):
     """Ответ на /api/ask — AgentResponse + служебные поля."""
     answer: str
     sources: list[str] = Field(default_factory=list)
-    confidence: float
     has_answer: bool
     iterations: int = 0
     chunks_used: int = 0
@@ -36,9 +41,8 @@ class AskResponse(BaseModel):
     @classmethod
     def from_agent(cls, resp: AgentResponse, thread_id: str, latency_ms: float) -> "AskResponse":
         return cls(
-            answer=resp.answer,
+            answer=_strip_sources_line(resp.answer),
             sources=resp.sources,
-            confidence=resp.confidence,
             has_answer=resp.has_answer,
             iterations=resp.iterations,
             chunks_used=resp.chunks_used,

@@ -35,7 +35,7 @@ async def debug_page(request: Request, thread_id: str = Depends(get_or_create_th
     return templates.TemplateResponse(
         request,
         "debug.html",
-        {"thread_id": thread_id, "trace": None, "response": None},
+        {"thread_id": thread_id, "trace": None, "response": None, "timeline": []},
     )
 
 
@@ -73,6 +73,7 @@ async def debug_run(
                 "thread_id": effective_tid,
                 "trace": None,
                 "response": None,
+                "timeline": [],
                 "error": f"Ошибка агента: {e}",
             },
             status_code=503,
@@ -97,6 +98,19 @@ async def debug_run(
         "overhead_pct": (overhead_ms / total_ms) * 100 if total_ms else 0.0,
     }
 
+    # хронологический timeline: LLM и Tool вызовы перемежаются по started_at
+    # messages_delta — только новые сообщения с предыдущего LLM-вызова,
+    # чтобы не показывать одну и ту же историю N раз
+    timeline = []
+    prev_msg_count = 0
+    for i, ev in enumerate(trace_dict["llm_calls"]):
+        delta = ev["messages_in"][prev_msg_count:]
+        prev_msg_count = len(ev["messages_in"])
+        timeline.append({"type": "llm", "index": i + 1, "messages_delta": delta, **ev})
+    for ev in trace_dict["tool_calls"]:
+        timeline.append({"type": "tool", **ev})
+    timeline.sort(key=lambda x: x.get("started_at", 0))
+
     templates = get_templates()
     return templates.TemplateResponse(
         request,
@@ -107,6 +121,7 @@ async def debug_run(
             "trace_json": _json.dumps(trace_dict, ensure_ascii=False, indent=2),
             "response": ask_resp,
             "latency_breakdown": latency_breakdown,
+            "timeline": timeline,
             "mermaid_src": get_mermaid(),
             "error": None,
         },

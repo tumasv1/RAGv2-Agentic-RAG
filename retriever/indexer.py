@@ -299,6 +299,16 @@ def run_indexing(force: bool = False) -> dict[str, int]:
     # загружаем прошлое состояние (или пустой dict при force)
     if force:
         print("--- ПОЛНАЯ ПЕРЕИНДЕКСАЦИЯ ---")
+        # удаляем коллекцию целиком — иначе старые чанки (с другими ID) остаются
+        # и при следующей add_texts создаётся дублирование
+        _store = get_qdrant_store()
+        _store.client.delete_collection(cfg.qdrant.collection_name)
+        # закрываем клиент чтобы снять лок с qdrant_data/,
+        # иначе новый get_qdrant_store() упадёт с AlreadyLocked
+        _store.client.close()
+        global _qdrant_store
+        _qdrant_store = None
+        print("Коллекция очищена.")
         last_state: dict[str, float] = {}
     else:
         last_state = _load_state()

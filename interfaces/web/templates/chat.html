@@ -1,31 +1,29 @@
 {% extends "base.html" %}
 
+{% block body_attrs %} class="chat-page"{% endblock %}
 {% block title %}Чат — RAGv2{% endblock %}
 
 {% block content %}
 <section class="chat">
-  <h1>Спроси агента</h1>
-  <p class="muted">Thread: <code id="thread-id">{{ thread_id }}</code>
-    <button id="reset-thread-btn" type="button" class="btn-ghost">Сбросить сессию</button>
-  </p>
+  <div class="chat-header">
+    <h1>Спроси агента</h1>
+    <p class="muted">Thread: <code id="thread-id">{{ thread_id }}</code>
+      <button id="reset-thread-btn" type="button" class="btn-ghost">Сбросить сессию</button>
+    </p>
+  </div>
 
-  <form id="chat-form" class="chat-form">
-    <textarea id="question" name="question" rows="3" maxlength="4000" required
-              placeholder="Что известно про проект X? Какие задачи на неделю?"></textarea>
-    <div class="row">
+  <div id="chat-history" class="chat-history"></div>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <form id="chat-form" class="chat-input-area">
+    <textarea id="question" name="question" rows="2" maxlength="4000" required
+              placeholder="Задай вопрос…"></textarea>
+    <div class="chat-input-row">
       <button type="submit" class="btn-primary">Отправить</button>
       <span id="loader" class="loader hidden">обрабатываю…</span>
     </div>
   </form>
-
-  <div id="banner" class="banner hidden"></div>
-
-  <article id="answer" class="answer hidden">
-    <h2>Ответ</h2>
-    <div id="answer-text" class="answer-text"></div>
-    <ul id="answer-sources" class="sources"></ul>
-    <div id="answer-meta" class="meta"></div>
-  </article>
 </section>
 {% endblock %}
 
