@@ -247,6 +247,7 @@ body.chat-page #chat-history {
   flex: 1;
   overflow-y: auto;
   padding-right: .3rem;
+  padding-bottom: .4rem;
 }
 body.chat-page .chat-input-area {
   flex-shrink: 0;

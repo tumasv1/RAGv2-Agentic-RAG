@@ -63,7 +63,7 @@ HEADERS_TO_SPLIT = [
     ("#", "Header 1"),
     ("##", "Header 2"),
     ("###", "Header 3"),
-    ("####", "Header 4"),
+    # ("####", "Header 4"),
 ]
 
 # Разделители для RecursiveCharacterTextSplitter
@@ -72,6 +72,8 @@ SEPARATORS = [
     "\n---",           # горизонтальная линия
     "\n```",           # блоки кода
     "\n> [!",          # callouts (Obsidian)
+    "\n####",          # ← добавить, если H4 отключён из MHTS
+    "\n#####",         # ← добавить, если H4 отключён из MHTS
     "\n\n",            # параграфы
     "\n",              # строки
     " ",               # слова

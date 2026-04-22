@@ -94,9 +94,9 @@ function initChat() {
     if (!question) return;
 
     hide(banner);
-    appendChatMsg("user", question);
     qTa.value = "";
-    show(loader);
+    show(loader);          // сначала показываем лоадер — история сжимается
+    appendChatMsg("user", question);  // потом добавляем сообщение и скроллим
 
     try {
       const data = await postJSON("/api/ask", { question });
@@ -157,7 +157,11 @@ function initChat() {
 
     wrapper.appendChild(bubble);
     history.appendChild(wrapper);
-    wrapper.scrollIntoView({ behavior: "smooth", block: "end" });
+    // Скроллим сам контейнер истории в самый низ — надёжнее, чем scrollIntoView
+    // (который может проскроллить до того, как layout устаканится)
+    requestAnimationFrame(() => {
+      history.scrollTo({ top: history.scrollHeight, behavior: "smooth" });
+    });
   }
 }
 
