@@ -8,7 +8,8 @@
 4. Для удалённых файлов: убирает чанки из Qdrant
 5. Обновляет index_state.json
 
-Qdrant работает в embedded-режиме (без Docker) — данные хранятся в qdrant_data/.
+Qdrant запускается в Docker (docker-compose.yml).
+Fallback на embedded-режим: убери url из config.yaml, верни path.
 
 Использование:
     from retriever.indexer import run_indexing, get_qdrant_store
@@ -68,14 +69,33 @@ def _find_bm25_model_path() -> Path | None:
 
 def _resolve_qdrant_path() -> Path:
     """
-    Определяет абсолютный путь к папке Qdrant.
-    Если в конфиге относительный путь — разрешаем от корня проекта.
+    Определяет абсолютный путь к локальной папке Qdrant.
+    Используется для index_state.json и embedded-fallback.
     """
     cfg = get_config()
     qdrant_path = Path(cfg.qdrant.path)
     if not qdrant_path.is_absolute():
         qdrant_path = _find_project_root() / qdrant_path
     return qdrant_path
+
+
+def _get_client_options() -> dict:
+    """
+    Возвращает параметры подключения к Qdrant.
+
+    Docker-режим (cfg.qdrant.url задан): подключение по HTTP/gRPC.
+    Embedded-fallback (url не задан): локальный файловый режим.
+    """
+    cfg = get_config()
+    if cfg.qdrant.url:
+        opts: dict = {"url": cfg.qdrant.url}
+        if cfg.qdrant.api_key:
+            opts["api_key"] = cfg.qdrant.api_key
+        return opts
+    # embedded fallback — создаём папку и подключаемся к файлу
+    qdrant_path = _resolve_qdrant_path()
+    qdrant_path.mkdir(parents=True, exist_ok=True)
+    return {"path": str(qdrant_path)}
 
 
 def get_qdrant_store() -> QdrantVectorStore:
@@ -94,8 +114,6 @@ def get_qdrant_store() -> QdrantVectorStore:
         return _qdrant_store
 
     cfg = get_config()
-    qdrant_path = _resolve_qdrant_path()
-    qdrant_path.mkdir(parents=True, exist_ok=True)
 
     # BM25-модель — ищем в стандартных кешах HuggingFace и fastembed
     bm25_kwargs: dict = {}
@@ -107,7 +125,7 @@ def get_qdrant_store() -> QdrantVectorStore:
         embedding=get_embeddings(),
         sparse_embedding=FastEmbedSparse("Qdrant/bm25", **bm25_kwargs),
         retrieval_mode=RetrievalMode.HYBRID,
-        client_options={"path": str(qdrant_path)},
+        client_options=_get_client_options(),
         collection_name=cfg.qdrant.collection_name,
     )
     return _qdrant_store
@@ -303,9 +321,10 @@ def run_indexing(force: bool = False) -> dict[str, int]:
         # и при следующей add_texts создаётся дублирование
         _store = get_qdrant_store()
         _store.client.delete_collection(cfg.qdrant.collection_name)
-        # закрываем клиент чтобы снять лок с qdrant_data/,
-        # иначе новый get_qdrant_store() упадёт с AlreadyLocked
-        _store.client.close()
+        # в embedded-режиме close() снимает файловый лок, чтобы новый синглтон не упал
+        # в docker-режиме close() не обязателен, но и не вредит
+        if not cfg.qdrant.url:
+            _store.client.close()
         global _qdrant_store
         _qdrant_store = None
         print("Коллекция очищена.")

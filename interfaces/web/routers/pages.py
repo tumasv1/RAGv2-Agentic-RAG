@@ -19,13 +19,54 @@ router = APIRouter()
 
 @router.get("/")
 async def index(request: Request, thread_id: str = Depends(get_or_create_thread_id)):
-    """Главная страница: чат с агентом."""
+    """
+    Главная страница: чат с агентом.
+
+    В шаблон передаём:
+    - thread_id: активный thread_id (из cookie).
+    - sessions: список сессий для SSR sidebar-а.
+    - initial_messages: история активной сессии (если есть в БД).
+    """
+    from agent import load_messages_for_ui
+    from agent import sessions as agent_sessions
+
+    sessions_meta = agent_sessions.list_recent(limit=200)
+    sessions_view = [
+        {
+            "thread_id": s.thread_id,
+            "title": s.title or _fallback_title_pg(s.first_question),
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+            "message_count": s.message_count,
+        }
+        for s in sessions_meta
+    ]
+
+    initial_messages: list[dict] = []
+    if agent_sessions.get(thread_id) is not None:
+        try:
+            initial_messages = load_messages_for_ui(thread_id)
+        except Exception:
+            initial_messages = []
+
     templates = get_templates()
     return templates.TemplateResponse(
         request,
         "chat.html",
-        {"thread_id": thread_id},
+        {
+            "thread_id": thread_id,
+            "sessions": sessions_view,
+            "initial_messages": initial_messages,
+        },
     )
+
+
+def _fallback_title_pg(first_question: str | None) -> str:
+    """Fallback-title для SSR-sidebar, если LLM ещё не сгенерировал название."""
+    if not first_question:
+        return "Новый чат"
+    words = first_question.split()[:6]
+    return " ".join(words) if words else "Новый чат"
 
 
 @router.get("/debug")

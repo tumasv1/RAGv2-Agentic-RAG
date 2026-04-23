@@ -116,6 +116,49 @@ class HealthResponse(BaseModel):
     version: str = "0.1.0"
 
 
+# ── Сессии: /api/sessions ────────────────────────────────────────────────────
+
+class SessionSummary(BaseModel):
+    """Одна запись в списке сессий для sidebar-а."""
+    thread_id: str
+    title: str                                 # если в БД NULL — отдаём fallback
+    created_at: float                          # unix-timestamp
+    updated_at: float
+    message_count: int
+
+
+class SessionListResponse(BaseModel):
+    """Ответ на GET /api/sessions. Группировку по датам делает клиент."""
+    sessions: list[SessionSummary]
+
+
+class SessionMessage(BaseModel):
+    """Одно сообщение в истории для восстановления UI."""
+    role: Literal["user", "agent"]
+    content: str
+    sources: list[str] = Field(default_factory=list)
+
+
+class SessionMessagesResponse(BaseModel):
+    """Ответ на GET /api/sessions/{thread_id}/messages."""
+    thread_id: str
+    title: str
+    messages: list[SessionMessage]
+
+
+class SessionSelectResponse(BaseModel):
+    """Ответ на POST /api/sessions/{thread_id}/select — переключение cookie."""
+    thread_id: str
+    exists: bool                               # False, если сессия была удалена
+
+
+class SessionDeleteResponse(BaseModel):
+    """Ответ на DELETE /api/sessions/{thread_id}."""
+    thread_id: str
+    deleted: bool = True
+    new_thread_id: str | None = None           # если удалили активную — свежий UUID
+
+
 # ── Ошибки ───────────────────────────────────────────────────────────────────
 
 class ErrorResponse(BaseModel):

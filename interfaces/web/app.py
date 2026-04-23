@@ -50,9 +50,10 @@ def create_app() -> FastAPI:
     # ── Роутеры ──
     # импорт внутри функции, чтобы избежать циклических импортов
     # (роутеры импортируют deps, которые импортируют ничего из app)
-    from interfaces.web.routers import admin, chat, pages, search
+    from interfaces.web.routers import admin, chat, pages, search, sessions
     app.include_router(pages.router)
     app.include_router(chat.router)
+    app.include_router(sessions.router)
     app.include_router(search.router)
     app.include_router(admin.router)
 
@@ -60,15 +61,27 @@ def create_app() -> FastAPI:
     from interfaces.web.errors import register_error_handlers
     register_error_handlers(app)
 
-    # ── Startup log ──
+    # ── Startup log + инициализация persistence ──
     @app.on_event("startup")
     async def _startup() -> None:
         from core.config import get_config
+        from agent import sessions as agent_sessions
         cfg = get_config()
         log.info("RAGv2 web запущен")
         log.info("  Vault: %s", cfg.obsidian_vault)
         log.info("  LLM:   %s", cfg.nano_gpt_model)
         log.info("  Qdrant: %s (коллекция: %s)", cfg.qdrant.path, cfg.qdrant.collection_name)
+        log.info("  Persistence: %s (retention=%d дней)",
+                 cfg.persistence.db_path, cfg.persistence.retention_days)
+
+        # инициализируем таблицу sessions и чистим устаревшие
+        agent_sessions.init_db()
+        try:
+            removed = agent_sessions.cleanup_old(cfg.persistence.retention_days)
+            if removed:
+                log.info("  Cleanup на старте: удалено %d сессий", removed)
+        except Exception:
+            log.exception("Cleanup на старте упал")
 
     return app
 

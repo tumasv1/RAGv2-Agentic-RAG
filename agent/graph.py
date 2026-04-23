@@ -8,8 +8,9 @@
                     │                           │
                     └──(no tool_calls)──→ generate → END
 
-Checkpointer: MemorySaver (dev). Для прода — SqliteSaver.
-thread_id: идентификатор сессии для short-term memory.
+Checkpointer: SqliteSaver (персистентная история диалогов).
+Файл БД: data/agent.sqlite (cfg.persistence.db_path).
+thread_id: идентификатор сессии; один thread_id = одна история переписки.
 
 Использование:
     from agent.graph import ask
@@ -19,16 +20,25 @@ thread_id: идентификатор сессии для short-term memory.
 
 import logging
 import re
+import sqlite3
 import time
+from pathlib import Path
 from uuid import uuid4
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import tools_condition
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from core.config import get_config
+from core.llm_client import get_llm
 from core.types import AgentResponse
+from agent import sessions as agent_sessions
 from agent.state import AgentState
 from agent.nodes import (
     agent_node,
@@ -36,7 +46,7 @@ from agent.nodes import (
     generate_node,
     check_iteration_limit,
 )
-from agent.prompts import SYSTEM_PROMPT
+from agent.prompts import SYSTEM_PROMPT, TITLE_PROMPT
 from agent.tracer import AgentTracer, DebugTrace
 
 logger = logging.getLogger(__name__)
@@ -92,23 +102,42 @@ def _build_graph() -> StateGraph:
 
 _graph = None
 _checkpointer = None
+_ckpt_conn: sqlite3.Connection | None = None
 
 
 def get_graph():
     """
     Возвращает скомпилированный граф-синглтон.
 
-    MemorySaver — in-memory checkpointer для dev. Хранит историю
-    разговоров по thread_id (short-term memory в рамках сессии).
+    SqliteSaver — persistent checkpointer. История диалогов по thread_id
+    хранится в файле data/agent.sqlite (cfg.persistence.db_path) и переживает
+    рестарт процесса. Рядом в том же файле — таблица sessions с метаданными.
     """
-    global _graph, _checkpointer
+    global _graph, _checkpointer, _ckpt_conn
     if _graph is None:
         cfg = get_config()
-        _checkpointer = MemorySaver()
+        db_path = Path(cfg.persistence.db_path)
+        if not db_path.is_absolute():
+            from core.config import _find_project_root
+            db_path = _find_project_root() / db_path
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # autocommit-режим + общее соединение для checkpointer
+        _ckpt_conn = sqlite3.connect(
+            str(db_path), check_same_thread=False, isolation_level=None
+        )
+        _ckpt_conn.execute("PRAGMA journal_mode=WAL")
+
+        _checkpointer = SqliteSaver(_ckpt_conn)
+        _checkpointer.setup()     # создаст таблицы checkpoints/writes если их нет
+
+        agent_sessions.init_db()  # создаст таблицу sessions
+
         builder = _build_graph()
         _graph = builder.compile(
             checkpointer=_checkpointer,
         )
+        logger.info("Граф агента собран, checkpointer: SqliteSaver (%s)", db_path)
     return _graph
 
 
@@ -270,6 +299,92 @@ def get_mermaid() -> str:
         display(Markdown(f"```mermaid\\n{get_mermaid()}\\n```"))
     """
     return get_graph().get_graph().draw_mermaid()
+
+
+# --- загрузка истории для UI ---
+
+def load_messages_for_ui(thread_id: str) -> list[dict]:
+    """
+    Возвращает упрощённую историю сессии для рендеринга в веб-чате.
+
+    Берём последний снапшот состояния из checkpointer-а и оставляем только:
+    - HumanMessage → {"role": "user", "content": ...}
+    - AIMessage без tool_calls и с непустым content →
+        {"role": "agent", "content": ..., "sources": [...]}
+
+    Фильтруем: SystemMessage, ToolMessage, промежуточные AIMessage с tool_calls.
+    """
+    graph = get_graph()
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        snapshot = graph.get_state(config)
+    except Exception as e:
+        logger.warning("load_messages_for_ui: get_state упал для %s: %s", thread_id, e)
+        return []
+
+    if not snapshot or not snapshot.values:
+        return []
+
+    messages = snapshot.values.get("messages", [])
+    result: list[dict] = []
+    for m in messages:
+        if isinstance(m, (SystemMessage, ToolMessage)):
+            continue
+        if isinstance(m, HumanMessage):
+            content = m.content if isinstance(m.content, str) else str(m.content)
+            result.append({"role": "user", "content": content})
+            continue
+        if isinstance(m, AIMessage):
+            # промежуточный ход агента с tool_calls — пропускаем
+            if getattr(m, "tool_calls", None):
+                continue
+            content = m.content if isinstance(m.content, str) else str(m.content)
+            if not content:
+                continue
+            sources = _extract_sources(content)
+            text = _strip_sources_line(content)
+            result.append({"role": "agent", "content": text, "sources": sources})
+    return result
+
+
+def _strip_sources_line(text: str) -> str:
+    """Убирает хвост «Источники: ...» из текста ответа (как в web/schemas.py)."""
+    return re.sub(
+        r"\n+[Ии]сточники:\s*.+$", "", text, flags=re.DOTALL
+    ).rstrip()
+
+
+# --- генерация названия сессии ---
+
+def generate_title(question: str, answer: str) -> str:
+    """
+    Вызывает LLM для автогенерации короткого (2-5 слов) названия диалога.
+
+    При любой ошибке возвращает fallback — первые N слов вопроса
+    или «Новый чат», если вопрос пустой.
+    """
+    cfg = get_config()
+    max_words = cfg.persistence.title_max_words
+
+    try:
+        llm = get_llm()
+        prompt = TITLE_PROMPT.format(
+            question=question[:500],
+            answer=(answer or "")[:800],
+        )
+        resp = llm.invoke(prompt)
+        raw = (resp.content if hasattr(resp, "content") else str(resp)) or ""
+        title = raw.strip().strip('"').strip("'").strip(".").strip()
+        words = title.split()
+        if not words:
+            raise ValueError("empty title")
+        if len(words) > max_words:
+            title = " ".join(words[:max_words])
+        return title
+    except Exception as e:
+        logger.warning("generate_title: не получилось сгенерировать: %s", e)
+        words = (question or "").split()[:5]
+        return " ".join(words) if words else "Новый чат"
 
 
 # --- вспомогательные функции ---

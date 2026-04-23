@@ -74,8 +74,10 @@ class EmbeddingsConfig(BaseModel):
 
 
 class QdrantConfig(BaseModel):
-    """Настройки Qdrant: путь к хранилищу и имя коллекции."""
-    path: str = "qdrant_data"
+    """Настройки Qdrant: URL для docker-режима или path для embedded-fallback."""
+    path: str = "qdrant_data"          # embedded fallback (если url не задан)
+    url: str | None = None             # docker: "http://localhost:6333"
+    api_key: str | None = None         # для production с аутентификацией
     collection_name: str = "obsidian_notes"
 
 
@@ -84,6 +86,14 @@ class EvalConfig(BaseModel):
     report_dir: str = "reports"              # директория для markdown-отчётов
     recall_warn_threshold: float = 0.7       # порог для диагностики context_recall
     chunk_preview_len: int = 150             # символов превью чанка в отчёте
+
+
+class PersistenceConfig(BaseModel):
+    """Настройки хранения истории диалогов (SQLite)."""
+    db_path: str = "data/agent.sqlite"       # один файл для checkpointer + таблицы sessions
+    retention_days: int = 60                 # сессии старше удаляются автоматически
+    cleanup_every_sec: int = 3600            # как часто запускать ленивый cleanup (раз в час)
+    title_max_words: int = 6                 # верхняя граница слов в автогенерируемом title
 
 
 class AppConfig(BaseModel):
@@ -112,6 +122,7 @@ class AppConfig(BaseModel):
     embeddings: EmbeddingsConfig = EmbeddingsConfig()
     qdrant: QdrantConfig = QdrantConfig()
     eval: EvalConfig = EvalConfig()
+    persistence: PersistenceConfig = PersistenceConfig()
 
 
 # --- Определение корня проекта ---
