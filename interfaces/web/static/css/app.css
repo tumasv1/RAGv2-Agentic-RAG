@@ -1,3 +1,18 @@
+/* ── CSS-переменные темы ─────────────────────────────────────────────── */
+:root {
+  --bg: #ffffff;
+  --bg-sidebar: #f7f7f8;
+  --surface: #ffffff;
+  --text: #1f2328;
+  --text-muted: #6e7681;
+  --border: #e1e4e8;
+  --accent: #1f6feb;
+  --accent-hover: #1158c7;
+  --active: #e6f0ff;
+  --danger: #cf222e;
+  --sidebar-w: 280px;
+}
+
 /* ── Базовые ─────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 body {
@@ -230,13 +245,46 @@ body.chat-page {
 body.chat-page .container {
   flex: 1;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  margin-top: 0;
-  padding-top: .8rem;
-  padding-bottom: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 body.chat-page .footer { display: none; }
+
+/* Layout: sidebar зафиксирован слева, main-area сдвинута на его ширину */
+.app-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+.main-area {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  background: var(--bg);
+  padding: .8rem 1.2rem 0;
+  margin-left: var(--sidebar-w);
+}
+
+/* На chat-page сдвигаем контент топбара, чтобы nav был над чатом,
+   а sidebar визуально проходил до самого верха.
+   ─────────────────────────────────────────────────────────────────
+   ⚙  РЕГУЛИРОВКА ГОРИЗОНТАЛЬНОГО ПОЛОЖЕНИЯ КНОПОК Chat/Debug/...:
+     • padding-left — отступ от sidebar до кнопок (минимум = --sidebar-w,
+       больше = кнопки правее). Например:
+         padding-left: calc(var(--sidebar-w) + 1rem);
+     • padding-right — ограничивает сдвиг справа (не нужен обычно).
+   ───────────────────────────────────────────────────────────────── */
+body.chat-page .topbar-inner {
+  max-width: none;                      /* отменяем auto-центрирование */
+  margin: 0;
+  padding-left: calc(var(--sidebar-w) + 1rem);       /* ← меняй здесь */
+}
+body.chat-page .sidebar-toggle { display: none; }
+
 body.chat-page section.chat {
   flex: 1;
   overflow: hidden;
@@ -253,8 +301,226 @@ body.chat-page .chat-input-area {
   flex-shrink: 0;
   margin-top: 0;
   padding: .6rem 0 .8rem;
-  background: #f7f7f8;
-  border-top: 1px solid #e5e7eb;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+.sidebar {
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  width: var(--sidebar-w);
+  z-index: 50;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Бренд-блок: лого + название в шапке sidebar */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .9rem .9rem .6rem;
+}
+.sidebar-logo {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
+}
+.sidebar-brand-text {
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: -.01em;
+  color: var(--text);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .8rem .7rem;
+}
+.btn-new-chat {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: .55rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: .9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.btn-new-chat:hover {
+  background: var(--active);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-icon {
+  display: none;           /* mobile-only по-умолчанию */
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.btn-icon:hover { color: var(--text); background: var(--active); }
+
+.sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: .4rem 0 1rem;
+}
+.sidebar-empty {
+  padding: 1rem .9rem;
+  color: var(--text-muted);
+  font-size: .87rem;
+  text-align: center;
+}
+
+.session-group { margin-bottom: .8rem; }
+.session-group-title {
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: .5rem .9rem .25rem;
+}
+
+.session-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .5rem .9rem;
+  margin: 1px .35rem;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background .12s;
+}
+.session-item:hover { background: rgba(0,0,0,.04); }
+.session-item.active { background: var(--active); }
+.session-item.active .session-title { color: var(--accent); font-weight: 500; }
+
+.session-title {
+  flex: 1;
+  font-size: .9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-menu {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity .15s, background .15s, color .15s;
+}
+.session-item:hover .session-menu,
+.session-item.active .session-menu { opacity: 1; }
+.session-menu:hover { background: rgba(0,0,0,.08); color: var(--danger); }
+
+/* Кнопка-гамбургер в топбаре (только на /) */
+.sidebar-toggle {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: .75;
+  transition: opacity .15s, background .15s;
+}
+.sidebar-toggle:hover { opacity: 1; background: rgba(0,0,0,.05); }
+
+/* Overlay — активен только на мобайле */
+.sidebar-overlay { display: none; }
+
+/* ── Typing indicator (три мигающие точки) ──────────────────────────── */
+.typing-msg .chat-bubble.typing-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: .7rem .95rem;
+  min-height: 0;
+  line-height: 1;
+}
+.typing-bubble span {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .25;
+  animation: typing-dot 1.4s infinite ease-in-out;
+}
+.typing-bubble span:nth-child(2) { animation-delay: .2s; }
+.typing-bubble span:nth-child(3) { animation-delay: .4s; }
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: .25; transform: translateY(0); }
+  30%          { opacity: .95; transform: translateY(-3px); }
+}
+
+/* ── Адаптив: < 1024px — выезжающий sidebar ─────────────────────────── */
+@media (max-width: 1023px) {
+  body.chat-page .topbar-inner { padding-left: 0; }
+  body.chat-page .sidebar-toggle { display: inline-flex; }
+
+  .main-area { margin-left: 0; }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    z-index: 40;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 16px rgba(0,0,0,.12);
+  }
+
+  .btn-icon { display: inline-flex; }   /* крестик в sidebar-header */
+
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.35);
+    z-index: 30;
+  }
+  .sidebar-overlay.open { display: block; }
 }
 
 /* Сохраняем .answer для страницы /debug */

@@ -39,14 +39,14 @@ from qdrant_client import models as qmodels
 
 from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
 
-from core.config import get_config, _find_project_root
+from core.config import get_config
 from core.types import ChunkMetadata, SearchResult
 from eval.judge import compute_judge_scores, summarize_judge_scores
 from eval.metrics import compute_metrics
 from eval.report import _fmt, _ragas_traffic_light
 from eval.runner import load_golden_set, run_golden_set
 from retriever.embeddings import get_embeddings
-from retriever.indexer import _find_bm25_model_path, _scan_vault, _index_files
+from retriever.indexer import _find_bm25_model_path, _get_client_options, _scan_vault, _index_files
 
 
 # --- Стратегии чанкинга ---
@@ -93,15 +93,9 @@ def _create_temp_store(collection_name: str) -> QdrantVectorStore:
     """
     Создаёт QdrantVectorStore для временной коллекции.
 
-    Использует тот же qdrant_data/, те же эмбеддинги (E5-large)
-    и BM25, только имя коллекции другое.
+    Те же эмбеддинги (E5-large) и BM25, только имя коллекции другое.
+    Подключение — через _get_client_options() (docker или embedded fallback).
     """
-    cfg = get_config()
-    qdrant_path = Path(cfg.qdrant.path)
-    if not qdrant_path.is_absolute():
-        qdrant_path = _find_project_root() / qdrant_path
-    qdrant_path.mkdir(parents=True, exist_ok=True)
-
     bm25_kwargs: dict = {}
     bm25_cached = _find_bm25_model_path()
     if bm25_cached:
@@ -111,7 +105,7 @@ def _create_temp_store(collection_name: str) -> QdrantVectorStore:
         embedding=get_embeddings(),
         sparse_embedding=FastEmbedSparse("Qdrant/bm25", **bm25_kwargs),
         retrieval_mode=RetrievalMode.HYBRID,
-        client_options={"path": str(qdrant_path)},
+        client_options=_get_client_options(),
         collection_name=collection_name,
     )
 

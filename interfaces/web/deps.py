@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, time as _dt_time
 from pathlib import Path
 from uuid import uuid4
 
@@ -24,12 +25,39 @@ def _tojson_u(value: object) -> Markup:
     return Markup(json.dumps(value, ensure_ascii=False))
 
 
+def _group_by_date(sessions: list[dict]) -> list[dict]:
+    """
+    Группирует сессии по датам для SSR-рендера sidebar-а.
+
+    Возвращает список [{"label": "Сегодня", "items": [...]}, ...].
+    Пустые группы пропускаются. Сессии уже должны быть отсортированы DESC.
+    """
+    now = datetime.now()
+    today_start = datetime.combine(now.date(), _dt_time.min).timestamp()
+    yesterday_start = today_start - 86400
+    groups = {"today": [], "yesterday": [], "earlier": []}
+    for s in sessions:
+        ts = float(s.get("updated_at", 0) or 0)
+        if ts >= today_start:
+            groups["today"].append(s)
+        elif ts >= yesterday_start:
+            groups["yesterday"].append(s)
+        else:
+            groups["earlier"].append(s)
+    out = []
+    for key, label in (("today", "Сегодня"), ("yesterday", "Вчера"), ("earlier", "Ранее")):
+        if groups[key]:
+            out.append({"label": label, "items": groups[key]})
+    return out
+
+
 def get_templates() -> Jinja2Templates:
     """Возвращает синглтон Jinja2Templates для папки interfaces/web/templates/."""
     global _templates
     if _templates is None:
         _templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
         _templates.env.filters["tojson_u"] = _tojson_u
+        _templates.env.filters["group_by_date"] = _group_by_date
     return _templates
 
 

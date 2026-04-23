@@ -17,7 +17,7 @@ search:
 
 # — Настройки индексации —
 ingest:
-  chunk_size: 2500             # максимальный размер чанка (символов)
+  chunk_size: 800             # максимальный размер чанка (символов)
   chunk_overlap: 300           # перекрытие между чанками
   enrich_content: true         # препендить метаданные к тексту чанка (имя файла, путь, тип, теги)
   exclude_folders:             # папки, которые пропускаем при сканировании vault
@@ -40,7 +40,7 @@ embeddings:
 
 # — Qdrant —
 qdrant:
-  path: "qdrant_data"          # путь к локальному хранилищу (embedded mode)
+  url: "http://localhost:6333"          # docker-режим; убери и верни path для embedded fallback
   collection_name: "obsidian_notes"
 
 # — Оценка качества —
@@ -48,3 +48,10 @@ eval:
   report_dir: "reports"              # директория для markdown-отчётов
   recall_warn_threshold: 0.7         # порог для диагностики context_recall
   chunk_preview_len: 150             # символов превью чанка в отчёте
+
+# — История диалогов (SQLite: checkpointer + метаданные сессий) —
+persistence:
+  db_path: "data/agent.sqlite"       # единый файл БД
+  retention_days: 60                 # сессии старше удаляются (2 месяца)
+  cleanup_every_sec: 3600            # раз в час ленивый cleanup при GET /api/sessions
+  title_max_words: 6                 # ограничение длины автогенерируемого названия

@@ -49,14 +49,33 @@ body.theme-minimal .theme-toggle:hover {
 /* ── Контейнер ───────────────────────────────────────────────────────── */
 body.theme-minimal.chat-page .container { background: transparent; }
 
-/* ── Chat header ─────────────────────────────────────────────────────── */
-body.theme-minimal .chat-header .muted { color: #9a9888; font-size: .8rem; }
-body.theme-minimal .chat-header code {
-  background: transparent;
-  border: 1px solid #ebe8df;
-  color: #6b6b6b;
-  font-size: .76rem;
+/* Основная область чата — тот же бежевый, что и топбар/body, без окантовки */
+body.theme-minimal .main-area { background: transparent; }
+
+/* Sidebar: мягкий молочно-бежевый, чуть отличный от основного фона */
+body.theme-minimal .sidebar {
+  background: #f4f2ec;
+  border-right: 1px solid #ebe8df;
 }
+body.theme-minimal .sidebar-brand-text { color: #0f0f0f; }
+body.theme-minimal .btn-new-chat {
+  background: transparent;
+  border-color: #d9d6cb;
+  color: #0f0f0f;
+}
+body.theme-minimal .btn-new-chat:hover {
+  background: #ebe8df;
+  border-color: #0f0f0f;
+  color: #0f0f0f;
+}
+body.theme-minimal .session-group-title { color: #9a9888; }
+body.theme-minimal .session-item:hover { background: rgba(0,0,0,.04); }
+body.theme-minimal .session-item.active { background: #ebe8df; }
+body.theme-minimal .session-item.active .session-title { color: #0f0f0f; font-weight: 500; }
+
+/* Гамбургер в топбаре — без окантовки, неяркий */
+body.theme-minimal .sidebar-toggle { color: #0f0f0f; opacity: .65; }
+body.theme-minimal .sidebar-toggle:hover { opacity: 1; background: rgba(0,0,0,.05); }
 
 /* ── История сообщений ───────────────────────────────────────────────── */
 body.theme-minimal #chat-history {
@@ -120,8 +139,8 @@ body.theme-minimal .chat-msg--user .bubble-meta { color: rgba(250,249,246,0.5); 
 
 /* ── Поле ввода ──────────────────────────────────────────────────────── */
 body.theme-minimal.chat-page .chat-input-area {
-  background: #faf9f6;
-  border-top: 1px solid #ebe8df;
+  background: transparent;
+  border-top: none;
 }
 body.theme-minimal .input-box {
   background: #fff;
@@ -183,5 +202,19 @@ body.theme-minimal .banner.warning {
   color: #7a4f00;
 }
 
+/* ── Typing indicator — чёрные точки на бежевом фоне ─────────────────── */
+body.theme-minimal .typing-msg .chat-bubble.typing-bubble {
+  background: transparent;
+  border: none;
+  color: #0f0f0f;
+}
+
 /* ── Footer ──────────────────────────────────────────────────────────── */
 body.theme-minimal .footer { border-top-color: #ebe8df; color: #9a9888; }
+
+/* ── Мобильная верстка (< 1024px): в топбаре оставляем только гамбургер ── */
+@media (max-width: 1023px) {
+  body.theme-minimal.chat-page .topbar .nav { display: none; }
+  /* на чат-странице футер тоже убран (body.chat-page .footer скрыт базово),
+     так что на мобилке шапка = только кнопка-гамбургер */
+}

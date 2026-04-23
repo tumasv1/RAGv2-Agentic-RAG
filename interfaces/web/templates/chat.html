@@ -1,36 +1,89 @@
 {% extends "base.html" %}
 
-{% block body_attrs %} class="chat-page"{% endblock %}
+{% block body_attrs %} chat-page{% endblock %}
 {% block title %}Chat — Agentic RAG{% endblock %}
 
 {% block content %}
-<section class="chat">
-  <div class="chat-header">
-    <p class="muted">
-      Thread: <code id="thread-id">{{ thread_id }}</code>
-      <button id="reset-thread-btn" type="button" class="btn-ghost">New chat</button>
-    </p>
-  </div>
+<div class="app-shell" id="app-shell">
+  {# ── Sidebar со списком сессий ───────────────────────────────────── #}
+  <aside class="sidebar" id="sidebar" aria-label="История диалогов">
+    <div class="sidebar-brand">
+      <img src="{{ url_for('static', path='logo.png') }}" alt="" class="sidebar-logo">
+      <span class="sidebar-brand-text">Agentic RAG</span>
+    </div>
 
-  <div id="chat-history" class="chat-history"></div>
-
-  <div id="banner" class="banner hidden"></div>
-
-  <form id="chat-form" class="chat-input-area">
-    <div class="input-box">
-      <textarea id="question" name="question" rows="1" maxlength="4000" required
-                placeholder="Задай вопрос…"></textarea>
-      <button type="submit" class="btn-send" aria-label="Отправить" title="Отправить (Enter)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 19V5M5 12l7-7 7 7"/>
-        </svg>
+    <div class="sidebar-header">
+      <button id="btn-new-chat" type="button" class="btn-new-chat" title="Start new chat">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New chat
       </button>
     </div>
-    <span id="loader" class="loader hidden">обрабатываю…</span>
-  </form>
-</section>
+
+    <div class="sidebar-body" id="sidebar-body">
+      {% set grouped = sessions | group_by_date %}
+      {% if grouped %}
+        {% for group in grouped %}
+          <div class="session-group">
+            <div class="session-group-title">{{ group["label"] }}</div>
+            {% for s in group["items"] %}
+              <div class="session-item{% if s.thread_id == thread_id %} active{% endif %}"
+                   data-thread-id="{{ s.thread_id }}"
+                   title="{{ s.title }}">
+                <span class="session-title">{{ s.title }}</span>
+                <button class="session-menu" type="button" aria-label="Удалить диалог" title="Удалить">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="sidebar-empty">Нет сохранённых диалогов</div>
+      {% endif %}
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  {# ── Основная область (чат) ──────────────────────────────────────── #}
+  <section class="main-area">
+    {# Thread id сохраняем скрытым — нужен JS для привязки активной сессии #}
+    <span id="thread-id" hidden>{{ thread_id }}</span>
+
+    <section class="chat">
+      <div id="chat-history" class="chat-history">
+        {% for m in initial_messages %}
+          <div class="chat-msg chat-msg--{{ m.role }}">
+            <div class="chat-bubble">
+              <div class="bubble-text">{{ m.content }}</div>
+              {% if m.sources %}
+                <ul class="bubble-sources">
+                  {% for s in m.sources %}<li><code>{{ s }}</code></li>{% endfor %}
+                </ul>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div id="banner" class="banner hidden"></div>
+
+      <form id="chat-form" class="chat-input-area">
+        <div class="input-box">
+          <textarea id="question" name="question" rows="1" maxlength="4000" required
+                    placeholder="Задай вопрос…"></textarea>
+          <button type="submit" class="btn-send" aria-label="Отправить" title="Отправить (Enter)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19V5M5 12l7-7 7 7"/>
+            </svg>
+          </button>
+        </div>
+      </form>
+    </section>
+  </section>
+</div>
 {% endblock %}
 
 {% block scripts %}
-<script>initChat();</script>
+<script>initChat(); initSidebar();</script>
 {% endblock %}

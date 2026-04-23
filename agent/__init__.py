@@ -11,6 +11,22 @@ agent/ — LangGraph-агент для RAGv2.
     print(get_mermaid())                     # Mermaid-диаграмма графа
 """
 
-from agent.graph import ask, ask_debug, get_graph, get_mermaid
+from agent.graph import (
+    ask,
+    ask_debug,
+    generate_title,
+    get_graph,
+    get_mermaid,
+    load_messages_for_ui,
+)
+from agent import sessions
 
-__all__ = ["ask", "ask_debug", "get_graph", "get_mermaid"]
+__all__ = [
+    "ask",
+    "ask_debug",
+    "generate_title",
+    "get_graph",
+    "get_mermaid",
+    "load_messages_for_ui",
+    "sessions",
+]
