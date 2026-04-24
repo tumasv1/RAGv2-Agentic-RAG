@@ -9,7 +9,7 @@ search:
   max_chunks: 15                            # жёсткий лимит чанков для LLM
   fetch_k: 15                               # кандидатов из dense-ветки
   bm25_top_k: 3                             # кандидатов из BM25-ветки (BM25 точечный — хватает 3)
-  dense_score_threshold: 0.79               # cosine (0–1), подбирается по RAGAS
+  dense_score_threshold: 0.84               # cosine (0–1), подбирается по RAGAS
   sparse_score_threshold: 1.35              # BM25, подбирается по RAGAS; 1.35 = безопасный пол (min ref-score по golden_set_bm25=1.407)
   reranker_score_threshold: -3.3            # cross-encoder, подбирается по RAGAS
   use_reranking: false                      # вкл/выкл реранкер

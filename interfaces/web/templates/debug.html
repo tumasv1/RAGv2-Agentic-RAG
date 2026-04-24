@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Debug — RAGv2{% endblock %}
+{% block title %}Debug — Agentic RAG{% endblock %}
 
 {% block head_extra %}
 {% if mermaid_src %}
@@ -14,8 +14,79 @@
 {% block content %}
 <section class="debug">
   <h1>Debug dashboard</h1>
-  <p class="muted">Трейс LLM-вызовов, retrieval, latency breakdown. Аналог <code>notebooks/debug.ipynb</code>.</p>
+  <p class="muted">Цепочка вызовов текущей сессии · LLM-трейс · latency breakdown.</p>
 
+  {# ── Цепочка вызовов текущей сессии ──────────────────────────────── #}
+  <h2>
+    Цепочка вызовов
+    <span class="muted" style="font-size:.85rem;font-weight:400">
+      thread: <code>{{ thread_id }}</code>
+      {% if session_meta and session_meta.title %} · {{ session_meta.title }}{% endif %}
+    </span>
+  </h2>
+
+  {% if chain %}
+  <div class="call-chain">
+    {% for step in chain %}
+
+      {% if step.type == "human" %}
+      <div class="cc-item cc-human">
+        <span class="cc-badge cc-badge-human">user</span>
+        <div class="cc-body cc-text">{{ step.content | trim }}</div>
+      </div>
+
+      {% elif step.type == "tool_call" %}
+      <div class="cc-item cc-tool-call">
+        <span class="cc-badge cc-badge-tool">→ tool</span>
+        <div class="cc-body">
+          {% for call in step.calls %}
+          <div class="cc-call">
+            <span class="cc-call-name">{{ call.name }}</span>
+            {% if call.args %}
+            <span class="cc-call-args">
+              {% for k, v in call.args.items() %}{{ k }}={{ v | string | truncate(80, True, '…') }}{% if not loop.last %}, {% endif %}{% endfor %}
+            </span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% elif step.type == "tool_result" %}
+      <details class="cc-item cc-tool-result">
+        <summary>
+          <span class="cc-badge cc-badge-result">result{% if step.name %}: {{ step.name }}{% endif %}</span>
+          <span class="cc-result-preview">{{ step.content | truncate(90, True, '…') }}</span>
+        </summary>
+        <pre class="cc-result-full">{{ step.content }}{% if step.truncated %}\n… [обрезано]{% endif %}</pre>
+      </details>
+
+      {% elif step.type == "answer" %}
+      <div class="cc-item cc-answer">
+        <span class="cc-badge cc-badge-agent">agent</span>
+        <div class="cc-body">
+          <div class="cc-text">{{ step.content | trim }}</div>
+          {% if step.sources %}
+          <ul class="cc-sources">
+            {% for s in step.sources %}<li><code>{{ s }}</code></li>{% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+      </div>
+
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  {% elif session_meta is not none %}
+  <div class="banner info">Сессия пуста — начни диалог в разделе Chat.</div>
+  {% else %}
+  <div class="banner info">Активная сессия не найдена. Начни диалог в разделе Chat — здесь появится цепочка вызовов.</div>
+  {% endif %}
+
+  {# ── Форма debug-трейса для нового вопроса ────────────────────────── #}
+  <h2 style="margin-top:2rem">Запустить debug-трейс</h2>
+  <p class="muted">Задай вопрос — получишь полный трейс с latency по каждому LLM-вызову.</p>
   <form method="post" action="/debug" class="debug-form">
     <label>
       Вопрос
@@ -32,6 +103,7 @@
     <div class="banner error">{{ error }}</div>
   {% endif %}
 
+  {# ── Результаты POST-трейса ───────────────────────────────────────── #}
   {% if trace %}
     {% include "_trace_summary.html" %}
     {% include "_trace_timeline.html" %}

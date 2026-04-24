@@ -17,6 +17,7 @@ from agent.graph import (
     generate_title,
     get_graph,
     get_mermaid,
+    load_chain_for_debug,
     load_messages_for_ui,
 )
 from agent import sessions
@@ -27,6 +28,7 @@ __all__ = [
     "generate_title",
     "get_graph",
     "get_mermaid",
+    "load_chain_for_debug",
     "load_messages_for_ui",
     "sessions",
 ]

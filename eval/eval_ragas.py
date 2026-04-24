@@ -43,8 +43,12 @@ def main(
     n_samples: int | None = None,
     strategy: str | None = None,
     mode: str = "retriever",
+    judge_only: bool = False,
 ) -> None:
-    """Основной пайплайн: загрузка → прогон → метрики → судья → отчёт."""
+    """Основной пайплайн: загрузка → прогон → (RAGAS метрики) → судья → отчёт.
+
+    При judge_only=True пропускает compute_metrics — быстрее в ~3-5 раз.
+    """
     if mode == "agent" and strategy:
         print("⚠ --strategy игнорируется в режиме --mode agent (используется prod-коллекция)")
         strategy = None
@@ -59,6 +63,8 @@ def main(
         print(f"Коллекция: splitter_{strategy}  (--strategy {strategy})")
     else:
         print("Коллекция: obsidian_notes  (prod, без --strategy)")
+    if judge_only:
+        print("⚡ --judge-only: RAGAS метрики пропускаются")
     print("=" * 60)
 
     # 1. прогоняем golden set
@@ -80,15 +86,19 @@ def main(
     print("\n🧑‍⚖️ Оценка LLM-судьёй (0-3)...")
     judge_scores = compute_judge_scores(eval_data)
 
-    # 3. конвертируем в формат RAGAS
-    dataset = eval_data.to_ragas_dataset()
+    if judge_only:
+        # пропускаем RAGAS — быстрый режим только с судьёй
+        write_report(None, eval_data, judge_scores=judge_scores, strategy_name=report_strategy)
+    else:
+        # 3. конвертируем в формат RAGAS
+        dataset = eval_data.to_ragas_dataset()
 
-    # 4. вычисляем RAGAS метрики (отдельный LLM-судья через OpenRouter)
-    print("\n⏳ Вычисляю RAGAS метрики (запросы к LLM judge)...")
-    result = compute_metrics(dataset)
+        # 4. вычисляем RAGAS метрики (отдельный LLM-судья через OpenRouter)
+        print("\n⏳ Вычисляю RAGAS метрики (запросы к LLM judge)...")
+        result = compute_metrics(dataset)
 
-    # 5. пишем отчёт (имя файла включает стратегию/режим если задан)
-    write_report(result, eval_data, judge_scores=judge_scores, strategy_name=report_strategy)
+        # 5. пишем отчёт (имя файла включает стратегию/режим если задан)
+        write_report(result, eval_data, judge_scores=judge_scores, strategy_name=report_strategy)
 
 
 if __name__ == "__main__":
@@ -113,5 +123,12 @@ if __name__ == "__main__":
             "agent — прогон через агента (ask_debug, prod-коллекция)."
         ),
     )
+    parser.add_argument(
+        "--judge-only", action="store_true", default=False,
+        help=(
+            "Пропустить RAGAS метрики — запустить только прогон + LLM-судью. "
+            "Быстрее в ~3-5 раз. Отчёт сохраняется без Faith/AnswRel/CtxPrec/CtxRec."
+        ),
+    )
     args = parser.parse_args()
-    main(n_samples=args.samples, strategy=args.strategy, mode=args.mode)
+    main(n_samples=args.samples, strategy=args.strategy, mode=args.mode, judge_only=args.judge_only)

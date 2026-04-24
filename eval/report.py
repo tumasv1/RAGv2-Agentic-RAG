@@ -112,29 +112,32 @@ def _section_settings() -> list[str]:
 
 
 def _section_summary(
-    result: dict,
+    result: dict | None,
     judge_scores: list[JudgeScore] | None = None,
 ) -> list[str]:
-    """Средние метрики по всем кейсам."""
-
-    def avg(key: str) -> str:
-        scores = result[key]
-        valid = [s for s in scores if s is not None and s == s]
-        if not valid:
-            return "—"
-        return f"{sum(valid) / len(valid):.3f}"
-
+    """Средние метрики по всем кейсам. Если result=None — только судья."""
     lines = [
         "\n### Метрики (средние)\n",
         "| Метрика | Значение |",
         "|---------|----------|",
-        f"| Faithfulness | {avg('faithfulness')} |",
-        f"| Answer Relevancy | {avg('answer_relevancy')} |",
-        f"| Context Precision | {avg('context_precision')} |",
-        f"| Context Recall | {avg('context_recall')} |",
     ]
 
-    # добавляем нормализованную оценку LLM-судьи (если есть)
+    if result is not None:
+        def avg(key: str) -> str:
+            scores = result[key]
+            valid = [s for s in scores if s is not None and s == s]
+            if not valid:
+                return "—"
+            return f"{sum(valid) / len(valid):.3f}"
+
+        lines += [
+            f"| Faithfulness | {avg('faithfulness')} |",
+            f"| Answer Relevancy | {avg('answer_relevancy')} |",
+            f"| Context Precision | {avg('context_precision')} |",
+            f"| Context Recall | {avg('context_recall')} |",
+        ]
+
+    # нормализованная оценка LLM-судьи (если есть)
     if judge_scores:
         from eval.judge import summarize_judge_scores
         avg_judge = summarize_judge_scores(judge_scores)
@@ -145,17 +148,17 @@ def _section_summary(
 
 
 def _section_per_sample_table(
-    result: dict,
+    result: dict | None,
     eval_data: EvalDataset,
     judge_scores: list[JudgeScore] | None = None,
 ) -> list[str]:
     """
     Таблица скоров по каждому кейсу.
 
+    Если result=None — только колонки «Судья» и «Итог» (без RAGAS-метрик).
     Колонка «Итог»: оценка LLM-судьи (0-3) → светофор.
     Если судья недоступен — запасной светофор по RAGAS-метрикам.
     """
-    # словарь case_id → JudgeScore для быстрого поиска
     judge_map: dict[int, JudgeScore] = {}
     if judge_scores:
         judge_map = {js.case_id: js for js in judge_scores}
@@ -163,30 +166,55 @@ def _section_per_sample_table(
     rows = [
         "\n### Скоры по кейсам\n",
         f"_{_JUDGE_LEGEND}_\n",
-        "| # | Вопрос | Faith | AnswRel | CtxPrec | CtxRec | Судья | Итог |",
-        "|---|--------|-------|---------|---------|--------|-------|------|",
     ]
-    for i, case in enumerate(eval_data.cases):
-        fa = result["faithfulness"][i]
-        ar = result["answer_relevancy"][i]
-        cp = result["context_precision"][i]
-        cr = result["context_recall"][i]
 
-        js = judge_map.get(case["id"])
-        if js is not None:
-            tl = _judge_traffic_light(js.score)
-            judge_cell = f"{_JUDGE_EMOJI.get(js.score, '⚪')} {js.score}"
-        else:
-            tl = _ragas_traffic_light([fa, ar, cp, cr])
-            judge_cell = "—"
+    if result is None:
+        # компактная таблица без RAGAS-колонок
+        rows += [
+            "| # | Вопрос | has_answer | Судья | Итог |",
+            "|---|--------|------------|-------|------|",
+        ]
+        for i, case in enumerate(eval_data.cases):
+            js = judge_map.get(case["id"])
+            has_ans = "✅" if eval_data.has_answers[i] else "❌"
+            if js is not None:
+                tl = _judge_traffic_light(js.score)
+                judge_cell = f"{_JUDGE_EMOJI.get(js.score, '⚪')} {js.score}"
+            else:
+                tl = "⚪"
+                judge_cell = "—"
+            q = case["question"]
+            if len(q) > 60:
+                q = q[:60] + "…"
+            rows.append(f"| {case['id']} | {q} | {has_ans} | {judge_cell} | {tl} |")
+    else:
+        # полная таблица с RAGAS-метриками
+        rows += [
+            "| # | Вопрос | Faith | AnswRel | CtxPrec | CtxRec | Судья | Итог |",
+            "|---|--------|-------|---------|---------|--------|-------|------|",
+        ]
+        for i, case in enumerate(eval_data.cases):
+            fa = result["faithfulness"][i]
+            ar = result["answer_relevancy"][i]
+            cp = result["context_precision"][i]
+            cr = result["context_recall"][i]
 
-        q = case["question"]
-        if len(q) > 55:
-            q = q[:55] + "…"
-        rows.append(
-            f"| {case['id']} | {q} | {_fmt(fa)} | {_fmt(ar)} "
-            f"| {_fmt(cp)} | {_fmt(cr)} | {judge_cell} | {tl} |"
-        )
+            js = judge_map.get(case["id"])
+            if js is not None:
+                tl = _judge_traffic_light(js.score)
+                judge_cell = f"{_JUDGE_EMOJI.get(js.score, '⚪')} {js.score}"
+            else:
+                tl = _ragas_traffic_light([fa, ar, cp, cr])
+                judge_cell = "—"
+
+            q = case["question"]
+            if len(q) > 55:
+                q = q[:55] + "…"
+            rows.append(
+                f"| {case['id']} | {q} | {_fmt(fa)} | {_fmt(ar)} "
+                f"| {_fmt(cp)} | {_fmt(cr)} | {judge_cell} | {tl} |"
+            )
+
     return rows
 
 
@@ -229,7 +257,7 @@ def _section_judge_scores(
 
 
 def _section_detailed(
-    result: dict,
+    result: dict | None,
     eval_data: EvalDataset,
     judge_scores: list[JudgeScore] | None = None,
 ) -> list[str]:
@@ -254,22 +282,22 @@ def _section_detailed(
     lines = ["\n### Детально\n"]
 
     for i, case in enumerate(eval_data.cases):
-        fa = result["faithfulness"][i]
-        ar = result["answer_relevancy"][i]
-        cp = result["context_precision"][i]
-        cr = result["context_recall"][i]
-
         js = judge_map.get(case["id"])
 
         lines.append(f"#### [{case['id']}] {case['question']}\n")
 
-        # --- метрики ---
-        lines.append(
-            f"**Метрики:** "
-            f"Faith={_fmt(fa)} | AnswRel={_fmt(ar)} | "
-            f"CtxPrec={_fmt(cp)} | CtxRec={_fmt(cr)}"
-        )
-        lines.append("")
+        # --- метрики (только если RAGAS запускался) ---
+        if result is not None:
+            fa = result["faithfulness"][i]
+            ar = result["answer_relevancy"][i]
+            cp = result["context_precision"][i]
+            cr = result["context_recall"][i]
+            lines.append(
+                f"**Метрики:** "
+                f"Faith={_fmt(fa)} | AnswRel={_fmt(ar)} | "
+                f"CtxPrec={_fmt(cp)} | CtxRec={_fmt(cr)}"
+            )
+            lines.append("")
 
         # --- ответ LLM ---
         lines.append("**Ответ LLM:**")
@@ -373,7 +401,7 @@ def _build_report_filename(strategy_name: str | None = None) -> str:
 
 
 def write_report(
-    result: dict,
+    result: dict | None,
     eval_data: EvalDataset,
     judge_scores: list[JudgeScore] | None = None,
     output_path: Path | None = None,
@@ -385,7 +413,8 @@ def write_report(
     Каждый прогон создаёт отдельный файл с параметрами pipeline в имени.
 
     Args:
-        result: результат ragas.evaluate() (dict-like, per-sample scores)
+        result: результат ragas.evaluate() (dict-like, per-sample scores).
+                None → пропустить RAGAS-секции, показать только судью (--judge-only режим).
         eval_data: данные прогона из run_golden_set()
         judge_scores: оценки LLM-судьи 0-3 (опционально)
         output_path: путь к файлу отчёта (дефолт: reports/ragas_report_<params>.md)
