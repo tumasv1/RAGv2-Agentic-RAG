@@ -28,7 +28,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from core.llm_client import get_llm
 from core.types import SearchResult
-from retriever.search import search
+from retriever.formatting import build_parent_prefix
+from retriever.search import search, search_with_detail
 
 
 # --- Промпт для генерации ответа ---
@@ -65,7 +66,8 @@ class EvalDataset:
     answers: list[str] = field(default_factory=list)
     contexts: list[list[str]] = field(default_factory=list)
     ground_truths: list[str] = field(default_factory=list)
-    chunks_detail: list[list[ChunkInfo]] = field(default_factory=list)
+    chunks_detail: list[list[ChunkInfo]] = field(default_factory=list)         # parents
+    chunks_detail_children: list[list[ChunkInfo]] = field(default_factory=list)  # children (что нашёл поиск)
     has_answers: list[bool] = field(default_factory=list)  # False если LLM ответил "Не нашёл ответа в базе знаний"
     cases: list[dict] = field(default_factory=list)
 
@@ -138,28 +140,33 @@ def generate_answer(question: str, contexts: list[str]) -> str:
 def run_golden_set(
     cases: list[dict],
     search_fn: Callable[[str], list[SearchResult]] | None = None,
+    search_detail_fn: Callable[[str], tuple[list[SearchResult], list[SearchResult]]] | None = None,
     chunk_preview_len: int = 150,
 ) -> EvalDataset:
     """
     Прогоняет golden set через retriever + LLM.
 
     Для каждого тест-кейса:
-    1. search_fn(question) → список чанков
-    2. generate_answer(question, [чанки]) → str
-    3. has_answer = bool(results) — нашёл ли retriever хоть что-то
+    1. search_detail_fn(question) → (parents, children) — parents в LLM, children для отчёта
+    2. generate_answer(question, [parents]) → str
+    3. has_answer = False если LLM ответил "Не нашёл ответа в базе знаний"
     4. Собирает в EvalDataset
 
     Args:
         cases: тест-кейсы из load_golden_set()
-        search_fn: функция поиска (дефолт: retriever.search.search).
-                   Для compare_splitters можно подставить поиск по временной коллекции.
+        search_fn: функция поиска parents (legacy — если задана без search_detail_fn,
+                   children будут пустыми).
+        search_detail_fn: функция поиска, возвращающая (parents, children)
+                          (дефолт: retriever.search.search_with_detail).
         chunk_preview_len: длина превью чанка для отчёта
 
     Returns:
         EvalDataset с данными для RAGAS и отчёта
     """
-    if search_fn is None:
-        search_fn = search
+    # определяем стратегию поиска
+    if search_detail_fn is None and search_fn is None:
+        search_detail_fn = search_with_detail
+    # если задана только search_fn (legacy для compare_splitters), children = []
 
     data = EvalDataset()
 
@@ -169,8 +176,13 @@ def run_golden_set(
         print(f"\n[{case_id}] {q[:72]}...")
 
         # 1. поиск
-        results = search_fn(q)
-        context_texts = [r.content for r in results]
+        if search_detail_fn is not None:
+            parents, children = search_detail_fn(q)
+        else:
+            parents = search_fn(q)
+            children = []
+
+        context_texts = [r.content for r in parents]
 
         # 2. генерация ответа
         answer = generate_answer(q, context_texts)
@@ -178,7 +190,7 @@ def run_golden_set(
         # has_answer: False если LLM сам сказал что не нашёл ответа
         has_answer = "Не нашёл ответа в базе знаний" not in answer
 
-        print(f"    → {len(results)} чанков | has_answer={has_answer}")
+        print(f"    → parents: {len(parents)} | children: {len(children)} | has_answer={has_answer}")
 
         # 3. собираем данные
         data.questions.append(q)
@@ -188,13 +200,27 @@ def run_golden_set(
         data.has_answers.append(has_answer)
         data.cases.append(case)
 
-        data.chunks_detail.append([
+        # parent preview: строим prefix из метаданных + кусок content
+        # (в parent.content префикса нет, чтобы он не попадал в children)
+        parent_chunks: list[ChunkInfo] = []
+        for i, r in enumerate(parents, 1):
+            prefix = build_parent_prefix(i, r.metadata)
+            preview_text = f"{prefix}\n{r.content[:chunk_preview_len]}"
+            parent_chunks.append(ChunkInfo(
+                source=r.metadata.file_name,
+                score=round(r.score, 3),
+                preview=preview_text,
+            ))
+        data.chunks_detail.append(parent_chunks)
+
+        # child preview: raw content (prefix уже внутри content)
+        data.chunks_detail_children.append([
             ChunkInfo(
                 source=r.metadata.file_name,
                 score=round(r.score, 3),
                 preview=r.content[:chunk_preview_len].replace("\n", " "),
             )
-            for r in results
+            for r in children
         ])
 
     return data

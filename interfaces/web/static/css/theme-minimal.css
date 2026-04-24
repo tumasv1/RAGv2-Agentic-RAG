@@ -58,6 +58,7 @@ body.theme-minimal .sidebar {
   border-right: 1px solid #ebe8df;
 }
 body.theme-minimal .sidebar-brand-text { color: #0f0f0f; }
+body.theme-minimal .topbar-brand-text  { color: #0f0f0f; }
 body.theme-minimal .btn-new-chat {
   background: transparent;
   border-color: #d9d6cb;

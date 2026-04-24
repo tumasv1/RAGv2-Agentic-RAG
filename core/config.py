@@ -48,10 +48,12 @@ class SearchConfig(BaseModel):
 
 class IngestConfig(BaseModel):
     """Настройки индексации: размер чанков, перекрытие, исключения."""
-    chunk_size: int = 1700
-    chunk_overlap: int = 200
+    chunk_size: int = 1700                         # размер child-чанка (ищется поиском)
+    chunk_overlap: int = 200                       # overlap между child-чанками
+    parent_chunk_size: int = 2000                  # размер parent-чанка (возвращается LLM)
+    parent_chunk_overlap: int = 200               # overlap между parent-чанками — пограничный текст попадает в два parent'а
     enrich_content: bool = True                    # препендить метаданные (имя файла, путь, тип, теги) к тексту чанка
-    use_mhts: bool = True                          # использовать MarkdownHeaderTextSplitter; False = только RCTS
+    use_mhts: bool = True                          # использовать MHTS для children (heading_hierarchy); False = только RCTS
     exclude_folders: list[str] = [             # папки, которые пропускаем при сканировании
         "04. Шаблоны",
         "97. Вложения",

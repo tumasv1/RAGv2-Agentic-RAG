@@ -16,33 +16,20 @@ from datetime import datetime
 from langchain_core.tools import tool
 
 from core.types import SearchResult
+from retriever.formatting import build_parent_prefix
 from retriever.search import search
 
 
 def _format_chunk(i: int, r: SearchResult) -> str:
     """
-    Формирует блок чанка для LLM.
+    Формирует блок parent-чанка для LLM.
 
-    Метаданные берём напрямую из r.metadata (не из тела чанка),
-    а сам текст отрезаем от префикса chunker'а по разделителю '---'.
+    Prefix строится из r.metadata через общий форматтер build_parent_prefix —
+    в самом r.content префикса нет (parent хранится без него,
+    чтобы children, построенные из текста parent'а, не наследовали его).
     """
-    # строим заголовок из метаданных
-    lines = [f"[{i}] {r.metadata.file_name} (score: {r.score:.3f})"]
-    if r.metadata.created:
-        lines.append(f"Создан: {r.metadata.created}")
-    if r.metadata.heading_hierarchy:
-        lines.append(f"Иерархия заголовков: {' > '.join(r.metadata.heading_hierarchy)}")
-    if r.metadata.type:
-        lines.append(f"Тип: {r.metadata.type}")
-    if r.metadata.tags:
-        lines.append(f"Теги: {', '.join(r.metadata.tags)}")
-
-    # убираем блок метаданных chunker'а (всё до первого "---") — он нужен для поиска,
-    # но в LLM дублировал бы то, что уже есть в заголовке
-    _, sep, text = r.content.partition("---\n")
-    body = text.strip() if sep else r.content.strip()
-
-    return "\n".join(lines) + "\n---\n" + body
+    prefix = build_parent_prefix(i, r.metadata)
+    return f"{prefix}\n{r.content.strip()}"
 
 
 @tool
@@ -65,7 +52,7 @@ def search_knowledge_base(query: str, bm25_terms: str | None = None) -> str:
 
     chunks = [_format_chunk(i, r) for i, r in enumerate(results, 1)]
 
-    return "\n\n---\n\n".join(chunks)
+    return "\n\n======\n\n".join(chunks)
 
 
 @tool

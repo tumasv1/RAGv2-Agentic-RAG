@@ -448,6 +448,26 @@ body.chat-page .chat-input-area {
 .session-item.active .session-menu { opacity: 1; }
 .session-menu:hover { background: rgba(0,0,0,.08); color: var(--danger); }
 
+/* Бренд в топбаре: виден на немобильных страницах и на мобайл-чате */
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+}
+.topbar-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.topbar-brand-text {
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: -.01em;
+}
+/* chat-page десктоп: лого уже в sidebar — прячем из топбара */
+body.chat-page .topbar-brand { display: none; }
+
 /* Кнопка-гамбургер в топбаре (только на /) */
 .sidebar-toggle {
   display: inline-flex;
@@ -498,6 +518,7 @@ body.chat-page .chat-input-area {
 @media (max-width: 1023px) {
   body.chat-page .topbar-inner { padding-left: 0; }
   body.chat-page .sidebar-toggle { display: inline-flex; }
+  body.chat-page .topbar-brand  { display: flex; } /* sidebar скрыт — показываем лого в топбаре */
 
   .main-area { margin-left: 0; }
 

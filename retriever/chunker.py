@@ -1,21 +1,19 @@
 """
-Чанкинг markdown-файлов Obsidian для RAGv2.
+Чанкинг markdown-файлов Obsidian для RAGv2 (Parent-Child).
 
-Двухэтапный подход:
-1. MarkdownHeaderTextSplitter — разбивает по заголовкам (H1–H4),
-   сохраняя иерархию заголовков в метаданных каждой секции.
-2. RecursiveCharacterTextSplitter — дорезает большие секции до chunk_size.
-
-Дополнительно:
-- Извлекает frontmatter (type, created, tags, extra_metadata)
-- Нормализует виkilинки [[target|alias]] → alias
-- Генерирует стабильные chunk_id (MD5 от "file_path:index")
+Как работает:
+1. Читаем файл, выдёргиваем frontmatter, нормализуем вики-ссылки.
+2. RCTS(parent_chunk_size, parent_chunk_overlap) по всему телу → Parent-чанки.
+   Overlap между соседними parents — пограничный текст попадёт в два child'а,
+   которые вернут два разных parent'а → LLM видит обе стороны границы.
+3. Из каждого Parent'а строим Child'ы: MHTS(parent.text) → RCTS(chunk_size, chunk_overlap).
+   Связь child→parent явная через parent_id.
+4. Child'ам добавляем упрощённый prefix (Файл/Тип/Теги) — участвует в эмбеддинге и BM25.
+   Parent хранится без prefix'а; его prefix строится на лету в retriever/formatting.py.
 
 Использование:
     from retriever.chunker import chunk_file
-    chunks = chunk_file(Path("/path/to/note.md"))
-    for text, meta in chunks:
-        print(meta.chunk_id, meta.heading_hierarchy, text[:100])
+    children, parents = chunk_file(Path("/path/to/note.md"))
 """
 
 import hashlib
@@ -23,6 +21,7 @@ import re
 from pathlib import Path
 
 import yaml
+from langchain_core.documents import Document
 from langchain_text_splitters import (
     MarkdownHeaderTextSplitter,
     RecursiveCharacterTextSplitter,
@@ -32,48 +31,38 @@ from core.config import get_config
 from core.types import ChunkMetadata
 
 
-# --- Регулярные выражения ---
+# --- Регулярки ---
 
 # Frontmatter: YAML-блок между двумя ---
-# Пример:
-#   ---
-#   type: project
-#   created: 2024-01-15
-#   tags: [работа, планирование]
-#   ---
 FRONTMATTER_PATTERN = re.compile(
     r"^---\s*\n(?P<content>.*?)\n---\s*\n?",
     re.DOTALL,
 )
 
 # Виkilинки Obsidian: [[target|alias]], [[target]], ![[embedded]]
-# [[Проекты/Работа|Работа]] → Работа
-# [[Заметка]] → Заметка
-# ![[Картинка.png]] → Картинка.png
 WIKILINK_PATTERN = re.compile(
-    r"!?\[\[(?P<target>[^\]|#]+)(?:#[^\]|]*)?"  # target и опциональная секция #
-    r"(?:\|(?P<alias>[^\]]+))?\]\]"               # опциональный alias после |
+    r"!?\[\[(?P<target>[^\]|#]+)(?:#[^\]|]*)?"
+    r"(?:\|(?P<alias>[^\]]+))?\]\]"
 )
 
 # --- Настройки сплиттеров ---
 
-# Заголовки для MarkdownHeaderTextSplitter (H1–H4)
-# H5-H6 слишком глубокие — в Obsidian-заметках почти не встречаются
+# Заголовки для MHTS: H1–H3 (используется только для children — heading_hierarchy)
 HEADERS_TO_SPLIT = [
     ("#", "Header 1"),
     ("##", "Header 2"),
     ("###", "Header 3"),
-    # ("####", "Header 4"),
 ]
 
-# Разделители для RecursiveCharacterTextSplitter
-# Заголовков тут НЕТ — разбиение по ним уже сделано на первом шаге (MHTS)
+# Разделители для RCTS — заголовки идут первыми, чтобы RCTS резал по границам секций
 SEPARATORS = [
+    "\n# ",            # H1
+    "\n## ",           # H2
+    "\n### ",          # H3
+    "\n#### ",         # H4+
     "\n---",           # горизонтальная линия
     "\n```",           # блоки кода
-    "\n> [!",          # callouts (Obsidian)
-    "\n####",          # ← добавить, если H4 отключён из MHTS
-    "\n#####",         # ← добавить, если H4 отключён из MHTS
+    "\n> [!",          # Obsidian callouts
     "\n\n",            # параграфы
     "\n",              # строки
     " ",               # слова
@@ -83,67 +72,41 @@ SEPARATORS = [
 # --- Вспомогательные функции ---
 
 def _extract_frontmatter(text: str) -> tuple[dict, str]:
-    """
-    Извлекает YAML frontmatter из текста markdown-файла.
-
-    Frontmatter — это YAML-блок в начале файла между двумя ---.
-    Возвращает (словарь с полями, текст без frontmatter).
-    Если frontmatter нет — возвращает ({}, исходный текст).
-    """
+    """Достаёт YAML frontmatter, возвращает (dict, текст без frontmatter)."""
     match = FRONTMATTER_PATTERN.match(text)
     if not match:
         return {}, text
-
     try:
         fm_data = yaml.safe_load(match.group("content"))
         if not isinstance(fm_data, dict):
-            # frontmatter есть, но невалидный (например, просто строка)
             return {}, text
     except yaml.YAMLError:
         return {}, text
-
-    # убираем frontmatter из текста
-    body = text[match.end():]
-    return fm_data, body
+    return fm_data, text[match.end():]
 
 
 def _normalize_wikilinks(text: str) -> str:
-    """
-    Заменяет виkilинки Obsidian на читаемый текст.
-
-    [[Проекты/Работа|Работа]] → Работа  (берём alias)
-    [[Заметка]] → Заметка               (берём target)
-    ![[Картинка.png]] → Картинка.png     (embedded — берём target)
-    """
+    """[[Проекты/Работа|Работа]] → Работа; [[Заметка]] → Заметка."""
     def _replace(match: re.Match) -> str:
         alias = match.group("alias")
         if alias:
             return alias
         target = match.group("target")
-        # убираем путь к папке, оставляем только имя
         return target.rsplit("/", 1)[-1] if "/" in target else target
-
     return WIKILINK_PATTERN.sub(_replace, text)
 
 
-def _build_context_prefix(meta: ChunkMetadata) -> str:
+def _build_child_prefix(meta: ChunkMetadata) -> str:
     """
-    Контекстный заголовок из метаданных для включения в page_content.
-
-    Зачем: имя файла и иерархия заголовков несут семантику, которую
-    нужно проиндексировать. Без этого запрос "Галаева" не найдёт чанки
-    из файла "Галаева Елена.md", если фамилия не упоминается в тексте.
+    Упрощённый prefix для child-чанков (участвует в эмбеддинге).
 
     Формат (только непустые поля):
-        Файл: Галаева Елена
-        Путь: Контакты > Семья > Дети
-        Тип: employee
-        Теги: команда, HR
+        Файл: имя.md
+        Тип: tasks
+        Теги: a, b, c
         ---
     """
     lines = [f"Файл: {meta.file_name}"]
-    if meta.heading_hierarchy:
-        lines.append(f"Иерархия заголовков: {' > '.join(meta.heading_hierarchy)}")
     if meta.type:
         lines.append(f"Тип: {meta.type}")
     if meta.tags:
@@ -151,133 +114,154 @@ def _build_context_prefix(meta: ChunkMetadata) -> str:
     return "\n".join(lines) + "\n---"
 
 
-def _generate_chunk_id(file_path: str, index: int) -> str:
+def _generate_chunk_id(file_path: str, index: int, kind: str) -> str:
     """
-    Генерирует стабильный ID чанка.
+    Стабильный chunk_id: MD5(file_path:kind:index).
 
-    MD5 от "file_path:index" — тот же файл и тот же порядок чанков
-    всегда дают одинаковый ID. Это нужно для инкрементальной индексации:
-    при переиндексации того же файла chunk_id не меняются.
+    kind разделяет пространство id для child'ов и parent'ов.
     """
-    return hashlib.md5(f"{file_path}:{index}".encode("utf-8")).hexdigest()
+    return hashlib.md5(f"{file_path}:{kind}:{index}".encode("utf-8")).hexdigest()
 
 
 # --- Главная функция ---
 
-def chunk_file(file_path: Path) -> list[tuple[str, ChunkMetadata]]:
+def chunk_file(
+    file_path: Path,
+) -> tuple[
+    list[tuple[str, ChunkMetadata]],  # children (с prefix в тексте)
+    list[tuple[str, ChunkMetadata]],  # parents (без prefix)
+]:
     """
-    Разбивает .md файл на чанки с метаданными.
-
-    Алгоритм:
-    1. Читаем файл
-    2. Извлекаем frontmatter → type, created, tags, extra_metadata
-    3. Нормализуем виkilинки
-    4. MarkdownHeaderTextSplitter → секции с метаданными заголовков
-    5. RecursiveCharacterTextSplitter → дорезаем большие секции
-    6. Генерируем chunk_id и собираем ChunkMetadata
-
-    Args:
-        file_path: путь к .md файлу (абсолютный или относительный)
+    Разбивает .md файл на Parent-Child чанки.
 
     Returns:
-        Список (текст_чанка, ChunkMetadata) — готов для индексации
+        (children, parents):
+            - children — малые чанки с prefix'ом в page_content; ищутся поиском.
+            - parents — крупные чанки без prefix'а; возвращаются LLM.
     """
     cfg = get_config().ingest
 
-    # 1. читаем файл
+    # 1. читаем, парсим frontmatter, нормализуем ссылки
     text = file_path.read_text(encoding="utf-8")
-
-    # 2. извлекаем frontmatter
     fm_data, body = _extract_frontmatter(text)
-
-    # 3. нормализуем виkilинки
     body = _normalize_wikilinks(body)
 
-    # если после обработки текст пустой — возвращаем пустой список
     if not body.strip():
-        return []
+        return [], []
 
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=cfg.chunk_size,
-        chunk_overlap=cfg.chunk_overlap,
-        separators=SEPARATORS,
-    )
-
-    if cfg.use_mhts:
-        # 4. разбиваем по заголовкам (шаг 1)
-        md_splitter = MarkdownHeaderTextSplitter(
-            headers_to_split_on=HEADERS_TO_SPLIT,
-            strip_headers=False,  # оставляем заголовки в тексте — полезно для контекста LLM
-        )
-        header_docs = md_splitter.split_text(body)
-
-        # 5. дорезаем большие секции (шаг 2)
-        final_docs = text_splitter.split_documents(header_docs)
-    else:
-        # rcts_only: пропускаем MHTS, делим весь текст напрямую через RCTS
-        # heading_hierarchy у таких чанков будет пустой
-        final_docs = text_splitter.create_documents([body])
-
-    # --- Подготовка метаданных из frontmatter ---
+    # --- метаданные из frontmatter ---
 
     file_path_str = str(file_path.resolve())
+    file_name = file_path.name
 
-    # type: может быть строкой или списком → нормализуем в строку
     fm_type = fm_data.get("type", "")
     if isinstance(fm_type, list):
         fm_type = fm_type[0] if fm_type else ""
     fm_type = str(fm_type)
 
-    # created: строка YYYY-MM-DD или пустая
     fm_created = str(fm_data.get("created", ""))
 
-    # tags: может быть списком или строкой → нормализуем в список
     fm_tags = fm_data.get("tags", []) or []
     if isinstance(fm_tags, str):
         fm_tags = [fm_tags]
 
-    # extra_metadata: все поля frontmatter, кроме type, created, tags
     known_keys = {"type", "created", "tags"}
     extra = {k: v for k, v in fm_data.items() if k not in known_keys}
 
-    # 6. собираем результат
-    results: list[tuple[str, ChunkMetadata]] = []
+    # 2. Parents: RCTS с overlap по всему телу документа.
+    # Overlap гарантирует: пограничный текст попадёт в два child'а → два parent'а → LLM видит оба.
+    # heading_hierarchy у parent'а не нужен — в build_parent_prefix только file_name/created/type/tags.
+    parent_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=cfg.parent_chunk_size,
+        chunk_overlap=cfg.parent_chunk_overlap,
+        separators=SEPARATORS,
+    )
+    parent_texts = parent_splitter.split_text(body)
+    parent_total = len(parent_texts)
 
-    for i, doc in enumerate(final_docs):
-        chunk_text = doc.page_content
-        if not chunk_text.strip():
-            continue
+    # 3. Children: MHTS(parent.text) → RCTS — даёт heading_hierarchy.
+    # use_mhts=False → дети строятся прямым RCTS (для стратегии rcts_only).
+    child_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=cfg.chunk_size,
+        chunk_overlap=cfg.chunk_overlap,
+        separators=SEPARATORS,
+    )
 
-        # heading_hierarchy из метаданных MarkdownHeaderTextSplitter
-        # MHTS кладёт заголовки как {"Header 1": "...", "Header 2": "...", ...}
-        heading_hierarchy = [
-            doc.metadata[key]
-            for key in ("Header 1", "Header 2", "Header 3", "Header 4")
-            if key in doc.metadata
-        ]
-        section_header = heading_hierarchy[-1] if heading_hierarchy else ""
+    children: list[tuple[str, ChunkMetadata]] = []
+    parents: list[tuple[str, ChunkMetadata]] = []
+    child_counter = 0
 
-        meta = ChunkMetadata(
-            chunk_id=_generate_chunk_id(file_path_str, i),
+    for p_idx, p_text in enumerate(parent_texts):
+        parent_id = _generate_chunk_id(file_path_str, p_idx, "parent")
+        parent_meta = ChunkMetadata(
+            chunk_id=parent_id,
+            kind="parent",
+            parent_id=None,
+            parent_file_name=file_name,
+            parent_index=p_idx,
+            parent_total=parent_total,
             file_path=file_path_str,
-            file_name=file_path.name,
-            section_header=section_header,
-            heading_hierarchy=heading_hierarchy,
+            file_name=file_name,
+            section_header="",
+            heading_hierarchy=[],
             type=fm_type,
             created=fm_created,
             tags=fm_tags,
             extra_metadata=extra,
         )
+        parents.append((p_text, parent_meta))
 
-        # обогащаем page_content контекстным префиксом (имя файла, путь, тип, теги)
-        # это нужно для поиска: dense и BM25 смогут матчить по метаданным
-        if cfg.enrich_content:
-            prefix = _build_context_prefix(meta)
-            chunk_text = f"{prefix}\n{chunk_text}"
+        # children из текста parent'а
+        if cfg.use_mhts:
+            parent_md_splitter = MarkdownHeaderTextSplitter(
+                headers_to_split_on=HEADERS_TO_SPLIT,
+                strip_headers=False,
+            )
+            child_sections = parent_md_splitter.split_text(p_text)
+            # MHTS может вернуть пустой список (parent без заголовков) — падаем на RCTS
+            if not child_sections:
+                child_sections = [Document(page_content=p_text, metadata={})]
+            child_docs = child_splitter.split_documents(child_sections)
+        else:
+            child_docs = child_splitter.create_documents([p_text])
 
-        results.append((chunk_text, meta))
+        for doc in child_docs:
+            chunk_text = doc.page_content
+            if not chunk_text.strip():
+                continue
 
-    return results
+            child_hh = [
+                doc.metadata[key]
+                for key in ("Header 1", "Header 2", "Header 3", "Header 4")
+                if key in doc.metadata
+            ]
+
+            child_meta = ChunkMetadata(
+                chunk_id=_generate_chunk_id(file_path_str, child_counter, "child"),
+                kind="child",
+                parent_id=parent_id,
+                parent_file_name=file_name,
+                parent_index=p_idx,
+                parent_total=parent_total,
+                file_path=file_path_str,
+                file_name=file_name,
+                section_header=child_hh[-1] if child_hh else "",
+                heading_hierarchy=child_hh,
+                type=fm_type,
+                created=fm_created,
+                tags=fm_tags,
+                extra_metadata=extra,
+            )
+
+            # prefix добавляется в page_content — участвует в эмбеддинге и BM25
+            if cfg.enrich_content:
+                prefix = _build_child_prefix(child_meta)
+                chunk_text = f"{prefix}\n{chunk_text}"
+
+            children.append((chunk_text, child_meta))
+            child_counter += 1
+
+    return children, parents
 
 
 # --- CLI: python -m retriever.chunker /path/to/file.md ---
@@ -297,31 +281,48 @@ if __name__ == "__main__":
     print(f"Чанкинг файла: {target}")
     print("=" * 60)
 
-    chunks = chunk_file(target)
+    children, parents = chunk_file(target)
 
-    total_chars = 0
-    for i, (text, meta) in enumerate(chunks):
-        total_chars += len(text)
-        print(f"\n--- Чанк {i + 1} ---")
+    # --- parents ---
+    print(f"\n=== PARENTS ({len(parents)}) ===")
+    for text, meta in parents:
+        print(f"\n--- Parent [{meta.parent_index + 1}/{meta.parent_total}] ---")
         print(f"  chunk_id: {meta.chunk_id}")
-        print(f"  file_name: {meta.file_name}")
         print(f"  heading_hierarchy: {meta.heading_hierarchy}")
-        print(f"  section_header: {meta.section_header}")
-        print(f"  type: {meta.type}")
-        print(f"  created: {meta.created}")
-        print(f"  tags: {meta.tags}")
-        if meta.extra_metadata:
-            print(f"  extra_metadata: {meta.extra_metadata}")
         print(f"  длина: {len(text)} символов")
-        # показываем первые 150 символов текста
-        preview = text[:1800].replace("\n", "\\n")
-        if len(text) > 1800:
+        preview = text[:400].replace("\n", "\\n")
+        if len(text) > 400:
             preview += "..."
         print(f"  текст: {preview}")
 
+    # --- children ---
+    print(f"\n=== CHILDREN ({len(children)}) ===")
+    # сгруппируем по parent_id
+    from collections import defaultdict
+    by_parent: dict[str, list[tuple[str, ChunkMetadata]]] = defaultdict(list)
+    for text, meta in children:
+        by_parent[meta.parent_id or ""].append((text, meta))
+
+    for p_idx, (_, parent_meta) in enumerate(parents):
+        bucket = by_parent.get(parent_meta.chunk_id, [])
+        print(f"\n--- Children for Parent [{p_idx + 1}/{len(parents)}] ({len(bucket)} шт.) ---")
+        for i, (text, meta) in enumerate(bucket, 1):
+            print(f"  [{i}] chunk_id: {meta.chunk_id}")
+            print(f"      heading_hierarchy: {meta.heading_hierarchy}")
+            print(f"      parent_id: {meta.parent_id}")
+            print(f"      parent_file_name: {meta.parent_file_name}")
+            print(f"      длина: {len(text)} символов")
+            preview = text[:200].replace("\n", "\\n")
+            if len(text) > 200:
+                preview += "..."
+            print(f"      текст: {preview}")
+
     print(f"\n{'=' * 60}")
-    print(f"Всего чанков: {len(chunks)}")
-    if chunks:
-        avg = total_chars / len(chunks)
-        print(f"Средний размер: {avg:.0f} символов")
+    print(f"Итого: parents={len(parents)}, children={len(children)}")
+    if children:
+        avg_c = sum(len(t) for t, _ in children) / len(children)
+        print(f"Средний размер child: {avg_c:.0f} симв.")
+    if parents:
+        avg_p = sum(len(t) for t, _ in parents) / len(parents)
+        print(f"Средний размер parent: {avg_p:.0f} симв.")
     print("=== OK ===")
