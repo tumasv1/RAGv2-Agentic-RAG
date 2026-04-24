@@ -21,6 +21,10 @@
         </svg>
       </button>
       {% endif %}
+      <div class="topbar-brand">
+        <img src="{{ url_for('static', path='logo.png') }}" alt="" class="topbar-logo">
+        <span class="topbar-brand-text">Agentic RAG</span>
+      </div>
       <nav class="nav">
         <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Chat</a>
         <a href="/debug" class="{% if request.url.path == '/debug' %}active{% endif %}">Debug</a>

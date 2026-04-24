@@ -22,8 +22,12 @@ class ChunkMetadata(BaseModel):
     Соответствует схеме из требований (§3).
     Используется при индексации (retriever/indexer.py) и поиске (retriever/search.py).
     """
-    chunk_id: str                              # уникальный ID (MD5 от file_path:index)
-    parent_id: str | None = None               # ID родителя (для Parent-Child стратегии)
+    chunk_id: str                              # уникальный ID (MD5 от file_path:kind:index)
+    kind: str = "child"                        # "child" или "parent" (Parent-Child стратегия)
+    parent_id: str | None = None               # ID родителя (у children; None у parents)
+    parent_file_name: str = ""                 # имя файла родителя (дублирует file_name; для дебага payload)
+    parent_index: int = 0                      # индекс parent-чанка в файле (0-based, только у parents)
+    parent_total: int = 1                      # всего parent-чанков в файле (у parents; для source_part: i/N)
     file_path: str                             # абсолютный путь к .md файлу
     file_name: str                             # имя файла без пути (для контекста LLM)
     section_header: str = ""                   # заголовок секции, к которой относится чанк

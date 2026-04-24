@@ -252,6 +252,8 @@ def _index_files(store: QdrantVectorStore, file_paths: list[str]) -> int:
     all_texts: list[str] = []
     all_metadatas: list[dict] = []
     all_ids: list[str] = []
+    total_children = 0
+    total_parents = 0
     errors = 0
 
     for idx, file_path in enumerate(file_paths):
@@ -260,13 +262,17 @@ def _index_files(store: QdrantVectorStore, file_paths: list[str]) -> int:
             print(f"  Чанкинг: {idx}/{len(file_paths)} файлов...")
 
         try:
-            chunks = chunk_file(Path(file_path))
+            children, parents = chunk_file(Path(file_path))
         except Exception as e:
             print(f"  ⚠ Ошибка чанкинга {Path(file_path).name}: {e}")
             errors += 1
             continue
 
-        for text, meta in chunks:
+        total_children += len(children)
+        total_parents += len(parents)
+
+        # кладём оба уровня в одну коллекцию; фильтр kind=child/parent в payload
+        for text, meta in children + parents:
             all_texts.append(text)
             all_metadatas.append(meta.model_dump())
             all_ids.append(meta.chunk_id)
@@ -278,7 +284,8 @@ def _index_files(store: QdrantVectorStore, file_paths: list[str]) -> int:
         return 0
 
     # add_texts делает батчинг внутри (batch_size=64 по умолчанию)
-    print(f"  Добавляю {len(all_texts)} чанков в Qdrant...")
+    print(f"  Добавляю {len(all_texts)} чанков в Qdrant "
+          f"(children={total_children}, parents={total_parents})...")
     store.add_texts(
         texts=all_texts,
         metadatas=all_metadatas,
@@ -371,7 +378,9 @@ def run_indexing(force: bool = False) -> dict[str, int]:
 
     # создаём payload-индексы для фильтрации по метаданным
     # если индексы уже есть — Qdrant просто проигнорирует (не упадёт)
-    for _field in ("metadata.type", "metadata.file_name", "metadata.tags"):
+    # metadata.kind и metadata.parent_id нужны для Parent-Child поиска
+    for _field in ("metadata.type", "metadata.file_name", "metadata.tags",
+                    "metadata.kind", "metadata.parent_id"):
         try:
             store.client.create_payload_index(
                 collection_name=cfg.qdrant.collection_name,

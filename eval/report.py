@@ -296,19 +296,36 @@ def _section_detailed(
             lines.append("**Заключение судьи:** —")
         lines.append("")
 
-        # --- таблица чанков ---
-        lines.append("**Найденные чанки:**\n")
-        lines.append("| # | Источник | Score | Превью |")
-        lines.append("|---|----------|-------|--------|")
+        # --- таблица найденных parent-чанков (что ушло в LLM) ---
+        lines.append("**Найденные чанки (parents):**\n")
+        lines.append("| # | Источник-родитель | Превью (с префиксом) |")
+        lines.append("|---|-------------------|----------------------|")
         for j, ch in enumerate(eval_data.chunks_detail[i], 1):
-            clean_preview = _strip_metadata(ch.preview)
-            # обрезаем до preview_len символов для компактности таблицы
-            if len(clean_preview) > preview_len:
-                clean_preview = clean_preview[:preview_len] + "…"
-            # экранируем символы переноса строк и пайпов в таблице
-            clean_preview = clean_preview.replace("\n", " ").replace("|", "｜")
-            lines.append(f"| {j} | {ch.source} | {ch.score} | {clean_preview} |")
+            # parent-preview содержит prefix — показываем как есть
+            preview = ch.preview
+            if len(preview) > preview_len:
+                preview = preview[:preview_len] + "…"
+            preview = preview.replace("\n", " ").replace("|", "｜")
+            lines.append(f"| {j} | {ch.source} | {preview} |")
         lines.append("")
+
+        # --- таблица child-чанков (что реально нашёл поиск) ---
+        children = (
+            eval_data.chunks_detail_children[i]
+            if i < len(eval_data.chunks_detail_children)
+            else []
+        )
+        if children:
+            lines.append("**Найденные чанки (children):**\n")
+            lines.append("| # | Источник | Score | Превью |")
+            lines.append("|---|----------|-------|--------|")
+            for j, ch in enumerate(children, 1):
+                clean_preview = _strip_metadata(ch.preview)
+                if len(clean_preview) > preview_len:
+                    clean_preview = clean_preview[:preview_len] + "…"
+                clean_preview = clean_preview.replace("\n", " ").replace("|", "｜")
+                lines.append(f"| {j} | {ch.source} | {ch.score} | {clean_preview} |")
+            lines.append("")
 
         # --- эталонные источники ---
         ref_docs = case.get("reference_docs", [])
