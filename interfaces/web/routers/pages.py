@@ -71,12 +71,35 @@ def _fallback_title_pg(first_question: str | None) -> str:
 
 @router.get("/debug")
 async def debug_page(request: Request, thread_id: str = Depends(get_or_create_thread_id)):
-    """Страница debug-дашборда (пустая форма; результаты через POST)."""
+    """
+    Страница debug-дашборда.
+
+    Сразу загружает историю текущей сессии из БД — не нужно
+    вводить вопрос, чтобы увидеть сводку по активному thread_id.
+    """
+    from agent import load_chain_for_debug
+    from agent import sessions as agent_sessions
+
+    session_meta = agent_sessions.get(thread_id)
+    chain: list[dict] = []
+    if session_meta is not None:
+        try:
+            chain = load_chain_for_debug(thread_id)
+        except Exception:
+            chain = []
+
     templates = get_templates()
     return templates.TemplateResponse(
         request,
         "debug.html",
-        {"thread_id": thread_id, "trace": None, "response": None, "timeline": []},
+        {
+            "thread_id": thread_id,
+            "session_meta": session_meta,
+            "chain": chain,
+            "trace": None,
+            "response": None,
+            "timeline": [],
+        },
     )
 
 

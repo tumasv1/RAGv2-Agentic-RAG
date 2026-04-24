@@ -767,6 +767,125 @@ table.kv th { width: 180px; background: #f9fafb; }
 /* Блок новых сообщений (дельта) — без отступа слева, чуть светлее граница */
 .msg-delta { border-left-color: #bfdbfe; margin-left: 0; }
 
+/* ── Debug: цепочка вызовов ──────────────────────────────────────────── */
+.call-chain {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  margin-bottom: 1.5rem;
+}
+
+.cc-item {
+  display: flex;
+  gap: .65rem;
+  align-items: flex-start;
+  padding: .55rem .7rem;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+.cc-tool-call   { border-left: 3px solid #10b981; }
+.cc-tool-result { border-left: 3px solid #d1d5db; background: #fafafa; }
+.cc-answer      { border-left: 3px solid #6366f1; }
+.cc-human       { border-left: 3px solid #3b82f6; }
+
+/* details: колонка, чтобы full-content шёл ПОД summary, а не рядом */
+.cc-tool-result {
+  flex-direction: column;
+  gap: 0;
+}
+.cc-tool-result > summary {
+  display: flex;
+  gap: .65rem;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  overflow: hidden;   /* без этого flex-child не обрезается */
+  min-width: 0;
+}
+.cc-tool-result > summary::-webkit-details-marker { display: none; }
+.cc-tool-result[open] > summary { margin-bottom: .5rem; }
+
+.cc-badge {
+  flex-shrink: 0;
+  font-size: .67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: .18rem .45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.cc-badge-human  { background: #dbeafe; color: #1d4ed8; }
+.cc-badge-tool   { background: #d1fae5; color: #065f46; }
+.cc-badge-result { background: #f3f4f6; color: #6b7280; }
+.cc-badge-agent  { background: #ede9fe; color: #5b21b6; }
+
+.cc-body {
+  flex: 1;
+  min-width: 0;
+  font-size: .88rem;
+  word-break: break-word;
+  color: #111827;
+  padding-top: .1rem;
+}
+/* pre-wrap только там, где нужно сохранять переносы строк в тексте */
+.cc-text {
+  white-space: pre-wrap;
+}
+
+/* Вызов инструмента */
+.cc-call { margin-bottom: .2rem; }
+.cc-call:last-child { margin-bottom: 0; }
+.cc-call-name {
+  font-weight: 600;
+  color: #059669;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: .83rem;
+}
+.cc-call-args {
+  margin-left: .4rem;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: .8rem;
+  color: #374151;
+  background: #ecfdf5;
+  padding: .1rem .35rem;
+  border-radius: 3px;
+}
+
+/* Результат инструмента */
+.cc-result-preview {
+  flex: 1;
+  min-width: 0;          /* без этого flex-item не усекается */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .83rem;
+  color: #6b7280;
+}
+.cc-result-full {
+  font-size: .78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #f9fafb;
+  border: 1px solid #eceef0;
+  border-radius: 4px;
+  padding: .5rem .7rem;
+  margin-top: .3rem;
+}
+
+/* Источники в ответе агента */
+.cc-sources {
+  font-size: .78rem;
+  color: #9ca3af;
+  padding-left: 1rem;
+  margin: .35rem 0 0;
+  border-top: 1px solid #f0f0f0;
+  padding-top: .3rem;
+}
+
 /* ── Admin ────────────────────────────────────────────────────────────── */
 .status-card {
   background: #fff;

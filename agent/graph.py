@@ -354,6 +354,76 @@ def _strip_sources_line(text: str) -> str:
     ).rstrip()
 
 
+# --- полная цепочка вызовов для debug-дашборда ---
+
+def load_chain_for_debug(thread_id: str) -> list[dict]:
+    """
+    Возвращает полную цепочку вызовов из LangGraph-чекпоинта:
+    - human     — вопрос пользователя
+    - tool_call — решение агента вызвать инструмент (имя + аргументы)
+    - tool_result — ответ инструмента (обрезается до 1200 символов)
+    - answer    — финальный текст агента
+
+    В отличие от load_messages_for_ui не фильтрует промежуточные шаги.
+    """
+    graph = get_graph()
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        snapshot = graph.get_state(config)
+    except Exception as e:
+        logger.warning("load_chain_for_debug: get_state упал для %s: %s", thread_id, e)
+        return []
+
+    if not snapshot or not snapshot.values:
+        return []
+
+    # Собираем индекс tool_call_id → tool_name из AIMessage.tool_calls
+    tool_name_index: dict[str, str] = {}
+    chain: list[dict] = []
+
+    for msg in snapshot.values.get("messages", []):
+        if isinstance(msg, SystemMessage):
+            continue
+
+        if isinstance(msg, HumanMessage):
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            chain.append({"type": "human", "content": content})
+
+        elif isinstance(msg, AIMessage):
+            calls = getattr(msg, "tool_calls", None) or []
+            if calls:
+                step_calls = []
+                for tc in calls:
+                    # tc может быть dict или объектом в зависимости от версии LangChain
+                    tc_id   = tc.get("id", "")   if isinstance(tc, dict) else getattr(tc, "id", "")
+                    tc_name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
+                    tc_args = tc.get("args", {}) if isinstance(tc, dict) else getattr(tc, "args", {})
+                    if tc_id:
+                        tool_name_index[tc_id] = tc_name
+                    step_calls.append({"name": tc_name, "args": tc_args})
+                chain.append({"type": "tool_call", "calls": step_calls})
+            else:
+                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                text = _strip_sources_line(content).strip()
+                if text:
+                    sources = _extract_sources(content)
+                    chain.append({"type": "answer", "content": text, "sources": sources})
+
+        elif isinstance(msg, ToolMessage):
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+            tc_id = getattr(msg, "tool_call_id", "") or ""
+            name = tool_name_index.get(tc_id, "tool")
+            truncated = len(content) > 1200
+            chain.append({
+                "type": "tool_result",
+                "name": name,
+                "content": content[:1200],
+                "truncated": truncated,
+            })
+
+    return chain
+
+
 # --- генерация названия сессии ---
 
 def generate_title(question: str, answer: str) -> str:
