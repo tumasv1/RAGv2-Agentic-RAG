@@ -84,11 +84,13 @@ def _extract_contexts(
                 source = "unknown"
                 score = 0.0
 
-            chunks.append(ChunkInfo(
-                source=source,
-                score=score,
-                preview=body_text[:chunk_preview_len].replace("\n", " "),
-            ))
+            chunks.append(
+                ChunkInfo(
+                    source=source,
+                    score=score,
+                    preview=body_text[:chunk_preview_len].replace("\n", " "),
+                )
+            )
 
     return contexts, chunks
 

@@ -70,6 +70,7 @@ def main(
     # 1. прогоняем golden set
     if mode == "agent":
         from eval.runner_agent import run_golden_set_agent
+
         print("\n📥 Прогон через агента (ask_debug)...")
         eval_data = run_golden_set_agent(cases)
         report_strategy = "agent"
@@ -77,6 +78,7 @@ def main(
         search_fn = None
         if strategy:
             from retriever.search import make_search_fn
+
             search_fn = make_search_fn(f"splitter_{strategy}")
         print("\n📥 Прогон через RAG pipeline...")
         eval_data = run_golden_set(cases, search_fn=search_fn)
@@ -104,11 +106,15 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RAGAS evaluation по golden set")
     parser.add_argument(
-        "--samples", type=int, default=None,
+        "--samples",
+        type=int,
+        default=None,
         help="Количество тест-кейсов (дефолт: все)",
     )
     parser.add_argument(
-        "--strategy", type=str, default=None,
+        "--strategy",
+        type=str,
+        default=None,
         help=(
             "Стратегия сплиттера: baseline, mhts_only, small, large, rcts_only. "
             "Использует постоянную коллекцию splitter_{strategy}. "
@@ -117,14 +123,19 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
-        "--mode", type=str, default="retriever", choices=["retriever", "agent"],
+        "--mode",
+        type=str,
+        default="retriever",
+        choices=["retriever", "agent"],
         help=(
             "Режим прогона: retriever (дефолт) — прямой вызов retriever+LLM, "
             "agent — прогон через агента (ask_debug, prod-коллекция)."
         ),
     )
     parser.add_argument(
-        "--judge-only", action="store_true", default=False,
+        "--judge-only",
+        action="store_true",
+        default=False,
         help=(
             "Пропустить RAGAS метрики — запустить только прогон + LLM-судью. "
             "Быстрее в ~3-5 раз. Отчёт сохраняется без Faith/AnswRel/CtxPrec/CtxRec."

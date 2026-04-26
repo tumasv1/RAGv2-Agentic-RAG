@@ -21,44 +21,48 @@ from typing import Any
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 
-
 # ── структуры данных ──────────────────────────────────────────────────────────
+
 
 @dataclass
 class LLMEvent:
     """Один вызов LLM."""
-    node: str           # "agent" | "generate" | "unknown"
-    messages_in: list   # [{role, content}] — входные сообщения
-    response: str       # текст ответа (пустой если только tool_calls)
-    tool_calls: list    # [{"name": ..., "args": {...}}]
+
+    node: str  # "agent" | "generate" | "unknown"
+    messages_in: list  # [{role, content}] — входные сообщения
+    response: str  # текст ответа (пустой если только tool_calls)
+    tool_calls: list  # [{"name": ..., "args": {...}}]
     latency_ms: float
-    started_at: float   # time.time() на момент начала (для сортировки)
+    started_at: float  # time.time() на момент начала (для сортировки)
 
 
 @dataclass
 class RetrievedDoc:
     """Один документ из результата search_knowledge_base."""
+
     index: int
-    source: str     # имя файла
-    section: str    # заголовок секции (может быть пустым)
+    source: str  # имя файла
+    section: str  # заголовок секции (может быть пустым)
     score: float
 
 
 @dataclass
 class ToolEvent:
     """Один вызов инструмента."""
+
     name: str
-    args: dict          # параметры вызова
-    result: str         # сырой строковый результат
+    args: dict  # параметры вызова
+    result: str  # сырой строковый результат
     retrieved_docs: list[RetrievedDoc]  # только для search_knowledge_base
     latency_ms: float
-    order: int          # порядковый номер вызова (начиная с 1)
-    started_at: float   # time.time() на момент начала (для сортировки)
+    order: int  # порядковый номер вызова (начиная с 1)
+    started_at: float  # time.time() на момент начала (для сортировки)
 
 
 @dataclass
 class DebugTrace:
     """Полный трейс одного запроса к агенту."""
+
     question: str
     thread_id: str
     total_latency_ms: float
@@ -77,11 +81,13 @@ class DebugTrace:
         print("╔" + "═" * W + "╗")
         print(f"║  {'AGENT TRACE':<{W - 2}}║")
         print("╠" + "═" * W + "╣")
-        q = self.question if len(self.question) <= W - 12 else self.question[:W - 15] + "..."
+        q = self.question if len(self.question) <= W - 12 else self.question[: W - 15] + "..."
         print(f"║  {'Вопрос:':<10} {q:<{W - 12}}║")
-        print(f"║  {'Thread:':<10} {self.thread_id[:W - 12]:<{W - 12}}║")
-        summary = f"{self.total_latency_ms:.0f}ms | iter={self.iterations} | chunks={self.chunks_used}"
-        print(f"║  {'Итог:':<10} {summary[:W - 12]:<{W - 12}}║")
+        print(f"║  {'Thread:':<10} {self.thread_id[: W - 12]:<{W - 12}}║")
+        summary = (
+            f"{self.total_latency_ms:.0f}ms | iter={self.iterations} | chunks={self.chunks_used}"
+        )
+        print(f"║  {'Итог:':<10} {summary[: W - 12]:<{W - 12}}║")
         print("╚" + "═" * W + "╝")
 
         # ── события в хронологическом порядке ──
@@ -148,6 +154,7 @@ class DebugTrace:
 
 
 # ── callback handler ──────────────────────────────────────────────────────────
+
 
 class AgentTracer(BaseCallbackHandler):
     """
@@ -222,9 +229,7 @@ class AgentTracer(BaseCallbackHandler):
 
     # ── LLM events ──
 
-    def on_chat_model_start(
-        self, serialized: dict, messages: list, **kwargs
-    ) -> None:
+    def on_chat_model_start(self, serialized: dict, messages: list, **kwargs) -> None:
         """Начало вызова chat-модели: запоминаем входные сообщения."""
         run_id = self._rid(kwargs)
         parent_run_id = str(kwargs.get("parent_run_id") or "")
@@ -255,25 +260,27 @@ class AgentTracer(BaseCallbackHandler):
             msg = getattr(gen, "message", None)
             if msg and hasattr(msg, "tool_calls") and msg.tool_calls:
                 for tc in msg.tool_calls:
-                    tool_calls.append({
-                        "name": tc.get("name", ""),
-                        "args": tc.get("args", {}),
-                    })
+                    tool_calls.append(
+                        {
+                            "name": tc.get("name", ""),
+                            "args": tc.get("args", {}),
+                        }
+                    )
 
-        self._llm_events.append(LLMEvent(
-            node=pending["node"],
-            messages_in=pending["messages_in"],
-            response=response_text,
-            tool_calls=tool_calls,
-            latency_ms=latency_ms,
-            started_at=started_at,
-        ))
+        self._llm_events.append(
+            LLMEvent(
+                node=pending["node"],
+                messages_in=pending["messages_in"],
+                response=response_text,
+                tool_calls=tool_calls,
+                latency_ms=latency_ms,
+                started_at=started_at,
+            )
+        )
 
     # ── tool events ──
 
-    def on_tool_start(
-        self, serialized: dict | None, input_str: str, **kwargs
-    ) -> None:
+    def on_tool_start(self, serialized: dict | None, input_str: str, **kwargs) -> None:
         """Начало вызова инструмента."""
         run_id = self._rid(kwargs)
         name = (serialized or {}).get("name", "unknown")
@@ -310,21 +317,23 @@ class AgentTracer(BaseCallbackHandler):
         if pending["name"] == "search_knowledge_base":
             retrieved_docs = _parse_retrieved_docs(result_str)
 
-        self._tool_events.append(ToolEvent(
-            name=pending["name"],
-            args=pending["args"],
-            result=result_str,
-            retrieved_docs=retrieved_docs,
-            latency_ms=latency_ms,
-            order=pending["order"],
-            started_at=started_at,
-        ))
+        self._tool_events.append(
+            ToolEvent(
+                name=pending["name"],
+                args=pending["args"],
+                result=result_str,
+                retrieved_docs=retrieved_docs,
+                latency_ms=latency_ms,
+                order=pending["order"],
+                started_at=started_at,
+            )
+        )
 
     def build_trace(
         self,
         question: str,
         thread_id: str,
-        response: Any,          # AgentResponse
+        response: Any,  # AgentResponse
         total_latency_ms: float,
     ) -> DebugTrace:
         """Собирает финальный DebugTrace из накопленных событий."""
@@ -358,12 +367,14 @@ def _parse_retrieved_docs(result: str) -> list[RetrievedDoc]:
     """Парсит результат search_knowledge_base в список RetrievedDoc."""
     docs = []
     for m in _DOC_PATTERN.finditer(result):
-        docs.append(RetrievedDoc(
-            index=int(m.group(1)),
-            source=m.group(2).strip(),
-            section=(m.group(3) or "").strip(),
-            score=float(m.group(4)),
-        ))
+        docs.append(
+            RetrievedDoc(
+                index=int(m.group(1)),
+                source=m.group(2).strip(),
+                section=(m.group(3) or "").strip(),
+                score=float(m.group(4)),
+            )
+        )
     return docs
 
 
@@ -390,8 +401,7 @@ def _format_messages(messages: list) -> list[dict]:
             tcs = getattr(msg, "tool_calls", None)
             if tcs:
                 entry["tool_calls"] = [
-                    {"name": tc.get("name", ""), "args": tc.get("args", {})}
-                    for tc in tcs
+                    {"name": tc.get("name", ""), "args": tc.get("args", {})} for tc in tcs
                 ]
         # Tool-сообщения: захватываем имя инструмента
         if role == "tool":
@@ -415,6 +425,7 @@ def _sort_events_chronological(
 
 
 # ── функции вывода ────────────────────────────────────────────────────────────
+
 
 def _print_llm_event(event: LLMEvent, w: int) -> None:
     """Выводит один LLM-вызов."""

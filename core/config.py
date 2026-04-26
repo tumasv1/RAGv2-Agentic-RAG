@@ -20,11 +20,12 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
-
 # --- Секции конфига (каждая — отдельная Pydantic-модель с дефолтами) ---
+
 
 class LlmConfig(BaseModel):
     """Настройки LLM: температура, лимит токенов, таймаут."""
+
     temperature: float = 0.7
     max_tokens: int = 2000
     request_timeout: int = 60  # секунды
@@ -32,14 +33,15 @@ class LlmConfig(BaseModel):
 
 class SearchConfig(BaseModel):
     """Настройки поиска: сколько чанков забирать, пороги, реранкер."""
-    max_chunks: int = 10                    # жёсткий лимит чанков для LLM
-    fetch_k: int = 40                       # кандидатов из dense-ветки
-    bm25_top_k: int = 3                     # кандидатов из BM25-ветки (меньше — BM25 точечный)
+
+    max_chunks: int = 10  # жёсткий лимит чанков для LLM
+    fetch_k: int = 40  # кандидатов из dense-ветки
+    bm25_top_k: int = 3  # кандидатов из BM25-ветки (меньше — BM25 точечный)
 
     # пороги score для каждого этапа — у каждого своя шкала
-    dense_score_threshold: float = 0.0      # cosine similarity (0–1), 0 = не фильтруем
-    sparse_score_threshold: float = 0.0     # BM25 score, 0 = не фильтруем
-    reranker_score_threshold: float = 0.0   # cross-encoder score, 0 = не фильтруем
+    dense_score_threshold: float = 0.0  # cosine similarity (0–1), 0 = не фильтруем
+    sparse_score_threshold: float = 0.0  # BM25 score, 0 = не фильтруем
+    reranker_score_threshold: float = 0.0  # cross-encoder score, 0 = не фильтруем
 
     # реранкер (cross-encoder)
     use_reranking: bool = False
@@ -48,13 +50,16 @@ class SearchConfig(BaseModel):
 
 class IngestConfig(BaseModel):
     """Настройки индексации: размер чанков, перекрытие, исключения."""
-    chunk_size: int = 1700                         # размер child-чанка (ищется поиском)
-    chunk_overlap: int = 200                       # overlap между child-чанками
-    parent_chunk_size: int = 2000                  # размер parent-чанка (возвращается LLM)
-    parent_chunk_overlap: int = 200               # overlap между parent-чанками — пограничный текст попадает в два parent'а
-    enrich_content: bool = True                    # препендить метаданные (имя файла, путь, тип, теги) к тексту чанка
-    use_mhts: bool = True                          # использовать MHTS для children (heading_hierarchy); False = только RCTS
-    exclude_folders: list[str] = [             # папки, которые пропускаем при сканировании
+
+    chunk_size: int = 1700  # размер child-чанка (ищется поиском)
+    chunk_overlap: int = 200  # overlap между child-чанками
+    parent_chunk_size: int = 2000  # размер parent-чанка (возвращается LLM)
+    parent_chunk_overlap: int = (
+        200  # overlap между parent-чанками — пограничный текст попадает в два parent'а
+    )
+    enrich_content: bool = True  # препендить метаданные (имя файла, путь, тип, теги) к тексту чанка
+    use_mhts: bool = True  # использовать MHTS для children (heading_hierarchy); False = только RCTS
+    exclude_folders: list[str] = [  # папки, которые пропускаем при сканировании
         "04. Шаблоны",
         "97. Вложения",
         "98. Ingest",
@@ -65,11 +70,13 @@ class IngestConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     """Настройки агента: лимит итераций."""
+
     max_iterations: int = 5
 
 
 class EmbeddingsConfig(BaseModel):
     """Настройки модели эмбеддингов."""
+
     model_name: str = "intfloat/multilingual-e5-large"
     device: str = "cpu"
     normalize: bool = True
@@ -77,25 +84,28 @@ class EmbeddingsConfig(BaseModel):
 
 class QdrantConfig(BaseModel):
     """Настройки Qdrant: URL для docker-режима или path для embedded-fallback."""
-    path: str = "qdrant_data"          # embedded fallback (если url не задан)
-    url: str | None = None             # docker: "http://localhost:6333"
-    api_key: str | None = None         # для production с аутентификацией
+
+    path: str = "qdrant_data"  # embedded fallback (если url не задан)
+    url: str | None = None  # docker: "http://localhost:6333"
+    api_key: str | None = None  # для production с аутентификацией
     collection_name: str = "obsidian_notes"
 
 
 class EvalConfig(BaseModel):
     """Настройки модуля оценки качества (eval/)."""
-    report_dir: str = "reports"              # директория для markdown-отчётов
-    recall_warn_threshold: float = 0.7       # порог для диагностики context_recall
-    chunk_preview_len: int = 150             # символов превью чанка в отчёте
+
+    report_dir: str = "reports"  # директория для markdown-отчётов
+    recall_warn_threshold: float = 0.7  # порог для диагностики context_recall
+    chunk_preview_len: int = 150  # символов превью чанка в отчёте
 
 
 class PersistenceConfig(BaseModel):
     """Настройки хранения истории диалогов (SQLite)."""
-    db_path: str = "data/agent.sqlite"       # один файл для checkpointer + таблицы sessions
-    retention_days: int = 60                 # сессии старше удаляются автоматически
-    cleanup_every_sec: int = 3600            # как часто запускать ленивый cleanup (раз в час)
-    title_max_words: int = 6                 # верхняя граница слов в автогенерируемом title
+
+    db_path: str = "data/agent.sqlite"  # один файл для checkpointer + таблицы sessions
+    retention_days: int = 60  # сессии старше удаляются автоматически
+    cleanup_every_sec: int = 3600  # как часто запускать ленивый cleanup (раз в час)
+    title_max_words: int = 6  # верхняя граница слов в автогенерируемом title
 
 
 class AppConfig(BaseModel):
@@ -105,6 +115,7 @@ class AppConfig(BaseModel):
     Поля верхнего уровня — из .env (секреты).
     Вложенные модели — из config.yaml (параметры).
     """
+
     # из .env — секреты и пути
     nano_gpt_api_key: str
     nano_gpt_base_url: str
@@ -129,6 +140,7 @@ class AppConfig(BaseModel):
 
 # --- Определение корня проекта ---
 
+
 def _find_project_root() -> Path:
     """
     Ищет корень проекта — поднимается вверх от текущего файла,
@@ -143,6 +155,7 @@ def _find_project_root() -> Path:
 
 
 # --- Загрузка конфига ---
+
 
 def load_config(
     config_path: Path | None = None,
@@ -183,6 +196,12 @@ def load_config(
     yaml_data["ragas_judge_api_key"] = os.environ.get("RAGAS_JUDGE_API_KEY", "")
     yaml_data["ragas_judge_model"] = os.environ.get("RAGAS_JUDGE_MODEL", "openai/gpt-4o-mini")
 
+    # QDRANT_URL из env переопределяет config.yaml — нужно для docker-compose
+    qdrant_url_env = os.environ.get("QDRANT_URL")
+    if qdrant_url_env:
+        yaml_data.setdefault("qdrant", {})
+        yaml_data["qdrant"]["url"] = qdrant_url_env
+
     # 4. Pydantic сам валидирует и подставит дефолты для пустых секций
     return AppConfig(**yaml_data)
 
@@ -220,6 +239,7 @@ if __name__ == "__main__":
         safe_dump["telegram_bot_token"] = token[:6] + "..." if token else ""
 
     import json
+
     print("=== RAGv2 Config ===")
     print(json.dumps(safe_dump, indent=2, ensure_ascii=False))
     print("=== OK ===")

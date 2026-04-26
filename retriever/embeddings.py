@@ -20,7 +20,6 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from core.config import get_config
 
-
 # --- Синглтон ---
 
 _embeddings: HuggingFaceEmbeddings | None = None

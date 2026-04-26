@@ -20,17 +20,18 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+# импортируем тип для аннотации (не вызывает circular import)
+from typing import TYPE_CHECKING
+
 from core.config import get_config
 from eval.runner import EvalDataset
 
-
-# импортируем тип для аннотации (не вызывает circular import)
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from eval.judge import JudgeScore
 
 
 # --- Вспомогательные функции ---
+
 
 def _fmt(val) -> str:
     """Форматирует скор в строку; NaN/None → '—'."""
@@ -54,7 +55,7 @@ def _strip_metadata(text: str) -> str:
     idx = text.find(sep)
     if idx == -1:
         return text.strip()
-    return text[idx + len(sep):].strip()
+    return text[idx + len(sep) :].strip()
 
 
 # --- Светофор на основе оценки судьи ---
@@ -95,6 +96,7 @@ def _ragas_traffic_light(scores: list) -> str:
 
 # --- Секции отчёта ---
 
+
 def _section_settings() -> list[str]:
     """Настройки pipeline на момент запуска."""
     cfg = get_config().search
@@ -123,6 +125,7 @@ def _section_summary(
     ]
 
     if result is not None:
+
         def avg(key: str) -> str:
             scores = result[key]
             valid = [s for s in scores if s is not None and s == s]
@@ -140,6 +143,7 @@ def _section_summary(
     # нормализованная оценка LLM-судьи (если есть)
     if judge_scores:
         from eval.judge import summarize_judge_scores
+
         avg_judge = summarize_judge_scores(judge_scores)
         avg_norm = avg_judge / 3.0
         lines.append(f"| LLM-судья (0-3→0-1) | {avg_judge:.2f}/3 = {avg_norm:.3f} |")
@@ -249,9 +253,7 @@ def _section_judge_scores(
         if len(q) > 50:
             q = q[:50] + "…"
         reason_short = js.reason[:100] + "…" if len(js.reason) > 100 else js.reason
-        lines.append(
-            f"| {js.case_id} | {q} | {emoji} {js.score} | {js.weight} | {reason_short} |"
-        )
+        lines.append(f"| {js.case_id} | {q} | {emoji} {js.score} | {js.weight} | {reason_short} |")
 
     return lines
 
@@ -339,9 +341,7 @@ def _section_detailed(
 
         # --- таблица child-чанков (что реально нашёл поиск) ---
         children = (
-            eval_data.chunks_detail_children[i]
-            if i < len(eval_data.chunks_detail_children)
-            else []
+            eval_data.chunks_detail_children[i] if i < len(eval_data.chunks_detail_children) else []
         )
         if children:
             lines.append("**Найденные чанки (children):**\n")
@@ -370,6 +370,7 @@ def _section_detailed(
 
 
 # --- Основная функция ---
+
 
 def _build_report_filename(strategy_name: str | None = None) -> str:
     """

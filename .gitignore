@@ -18,10 +18,22 @@ venv/
 
 # OS
 .DS_Store
+*.DS_Store
 Thumbs.db
+
+# Jupyter
+notebooks/.ipynb_checkpoints/
+*.ipynb_checkpoints/
 
 # Qdrant (локальные данные)
 qdrant_data/
+
+# Данные (будут в Docker volumes)
+data/agent.sqlite*
+
+# Отчёты (генерируются в runtime)
+reports/*.md
+reports/traces/
 
 # Прочие файлы
 other/

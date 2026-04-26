@@ -72,16 +72,19 @@ EVAL_PROMPT = (
 
 # --- Структура результата ---
 
+
 @dataclass
 class JudgeScore:
     """Результат оценки одного кейса судьёй."""
+
     case_id: int
-    score: int    # 0-3
+    score: int  # 0-3
     reason: str
     weight: float
 
 
 # --- Вспомогательные функции ---
+
 
 def _parse_json_response(text: str) -> dict:
     """
@@ -131,9 +134,7 @@ def judge_case(question: str, reference: str, candidate: str) -> tuple[int, str]
     try:
         data = _parse_json_response(raw)
     except (json.JSONDecodeError, KeyError) as err:
-        raise ValueError(
-            f"Судья вернул ответ, который не удалось распарсить:\n{raw}"
-        ) from err
+        raise ValueError(f"Судья вернул ответ, который не удалось распарсить:\n{raw}") from err
 
     return int(data["score"]), str(data["reason"])
 
@@ -161,12 +162,14 @@ def compute_judge_scores(eval_data: EvalDataset) -> list[JudgeScore]:
         print(f"  Судья [{case['id']}] {q[:60]}...")
 
         score, reason = judge_case(q, reference, candidate)
-        scores.append(JudgeScore(
-            case_id=case["id"],
-            score=score,
-            reason=reason,
-            weight=weight,
-        ))
+        scores.append(
+            JudgeScore(
+                case_id=case["id"],
+                score=score,
+                reason=reason,
+                weight=weight,
+            )
+        )
         print(f"    → {score}/3  {reason[:80]}")
 
     return scores

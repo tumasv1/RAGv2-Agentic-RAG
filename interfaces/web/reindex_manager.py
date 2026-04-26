@@ -76,20 +76,25 @@ def _run_job(job_id: str, force: bool) -> None:
 
     try:
         from retriever.indexer import run_indexing
+
         stats = run_indexing(force=force)
         with _lock:
             # проверяем что это всё ещё наш job (теоретически его мог перезапустить кто-то другой)
             if _current.job_id == job_id:
-                _current = _current.model_copy(update={
-                    "status": "done",
-                    "finished_at": time.time(),
-                    "stats": stats,
-                })
+                _current = _current.model_copy(
+                    update={
+                        "status": "done",
+                        "finished_at": time.time(),
+                        "stats": stats,
+                    }
+                )
     except Exception as e:
         with _lock:
             if _current.job_id == job_id:
-                _current = _current.model_copy(update={
-                    "status": "error",
-                    "finished_at": time.time(),
-                    "error": str(e),
-                })
+                _current = _current.model_copy(
+                    update={
+                        "status": "error",
+                        "finished_at": time.time(),
+                        "error": str(e),
+                    }
+                )

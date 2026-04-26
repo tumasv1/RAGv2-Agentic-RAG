@@ -11,6 +11,7 @@ agent/ — LangGraph-агент для RAGv2.
     print(get_mermaid())                     # Mermaid-диаграмма графа
 """
 
+from agent import sessions
 from agent.graph import (
     ask,
     ask_debug,
@@ -20,7 +21,6 @@ from agent.graph import (
     load_chain_for_debug,
     load_messages_for_ui,
 )
-from agent import sessions
 
 __all__ = [
     "ask",

@@ -24,5 +24,6 @@ class AgentState(TypedDict):
     iteration_count: сколько раз агент вызвал tool_node.
                      Если >= max_iterations — останавливаемся.
     """
+
     messages: Annotated[list[AnyMessage], add_messages]
     iteration_count: int

@@ -18,7 +18,6 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from agent import load_messages_for_ui
 from agent import sessions as agent_sessions
 from interfaces.web.deps import (
-    COOKIE_NAME,
     get_or_create_thread_id,
     reset_thread_id,
     set_thread_id,

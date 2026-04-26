@@ -21,14 +21,12 @@ import json
 import time
 from pathlib import Path
 
+from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
 from qdrant_client import models as qmodels
 
-from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
-
-from core.config import get_config, _find_project_root
+from core.config import _find_project_root, get_config
 from retriever.chunker import chunk_file
 from retriever.embeddings import get_embeddings
-
 
 # --- Синглтон Qdrant Store ---
 
@@ -46,7 +44,6 @@ def _find_bm25_model_path() -> Path | None:
     Returns:
         Path к папке модели или None (fastembed скачает сам)
     """
-    import os
     import tempfile
 
     # Кандидаты: HF кеш, fastembed кеш, tmpdir кеш
@@ -133,6 +130,7 @@ def get_qdrant_store() -> QdrantVectorStore:
 
 # --- Управление index_state.json ---
 
+
 def _get_state_path() -> Path:
     """
     Путь к index_state.json — хранится в папке qdrant_data/.
@@ -164,6 +162,7 @@ def _save_state(state: dict[str, float]) -> None:
 
 
 # --- Сканирование vault ---
+
 
 def _scan_vault() -> dict[str, float]:
     """
@@ -217,6 +216,7 @@ def _scan_vault() -> dict[str, float]:
 
 
 # --- Работа с Qdrant ---
+
 
 def _delete_chunks_for_files(store: QdrantVectorStore, file_paths: list[str]) -> None:
     """
@@ -284,8 +284,10 @@ def _index_files(store: QdrantVectorStore, file_paths: list[str]) -> int:
         return 0
 
     # add_texts делает батчинг внутри (batch_size=64 по умолчанию)
-    print(f"  Добавляю {len(all_texts)} чанков в Qdrant "
-          f"(children={total_children}, parents={total_parents})...")
+    print(
+        f"  Добавляю {len(all_texts)} чанков в Qdrant "
+        f"(children={total_children}, parents={total_parents})..."
+    )
     store.add_texts(
         texts=all_texts,
         metadatas=all_metadatas,
@@ -296,6 +298,7 @@ def _index_files(store: QdrantVectorStore, file_paths: list[str]) -> int:
 
 
 # --- Главная функция ---
+
 
 def run_indexing(force: bool = False) -> dict[str, int]:
     """
@@ -341,8 +344,8 @@ def run_indexing(force: bool = False) -> dict[str, int]:
 
     # --- Определяем что изменилось ---
 
-    new_files: list[str] = []       # есть в vault, нет в state
-    changed_files: list[str] = []   # есть в обоих, но mtime вырос
+    new_files: list[str] = []  # есть в vault, нет в state
+    changed_files: list[str] = []  # есть в обоих, но mtime вырос
     unchanged = 0
 
     for path, mtime in current_files.items():
@@ -379,8 +382,13 @@ def run_indexing(force: bool = False) -> dict[str, int]:
     # создаём payload-индексы для фильтрации по метаданным
     # если индексы уже есть — Qdrant просто проигнорирует (не упадёт)
     # metadata.kind и metadata.parent_id нужны для Parent-Child поиска
-    for _field in ("metadata.type", "metadata.file_name", "metadata.tags",
-                    "metadata.kind", "metadata.parent_id"):
+    for _field in (
+        "metadata.type",
+        "metadata.file_name",
+        "metadata.tags",
+        "metadata.kind",
+        "metadata.parent_id",
+    ):
         try:
             store.client.create_payload_index(
                 collection_name=cfg.qdrant.collection_name,

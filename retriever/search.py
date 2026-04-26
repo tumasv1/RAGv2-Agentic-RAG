@@ -21,9 +21,8 @@ from core.config import get_config
 from core.types import ChunkMetadata, SearchResult
 from retriever.indexer import get_qdrant_store
 
-
 # имена векторных полей в коллекции Qdrant
-_DENSE = ""                # безымянный (default) dense-вектор
+_DENSE = ""  # безымянный (default) dense-вектор
 _SPARSE = "langchain-sparse"
 
 # структура payload в Qdrant (как LangChain сохраняет документы)
@@ -44,6 +43,7 @@ _CHILD_FILTER = qmodels.Filter(
 
 
 # --- embedding функции ---
+
 
 def _embed_dense(query: str) -> list[float]:
     """Эмбеддит запрос → dense-вектор (E5-large, автопрефикс 'query: ')."""
@@ -71,6 +71,7 @@ def _get_reranker():
     global _reranker
     if _reranker is None:
         from fastembed.rerank.cross_encoder import TextCrossEncoder
+
         cfg = get_config().search
         _reranker = TextCrossEncoder(cfg.reranker_model)
     return _reranker
@@ -101,6 +102,7 @@ def _rerank(query: str, results: list[SearchResult]) -> list[SearchResult]:
 
 # --- конвертация результатов ---
 
+
 def _point_to_result(point) -> SearchResult | None:
     """
     Конвертирует ScoredPoint/Record из Qdrant → SearchResult.
@@ -123,6 +125,7 @@ def _point_to_result(point) -> SearchResult | None:
 
 
 # --- базовый поиск по children ---
+
 
 def _search_children(
     query: str,
@@ -187,6 +190,7 @@ def _search_children(
 
 # --- дедуп и получение parents ---
 
+
 def _dedup_and_fetch_parents(
     children: list[SearchResult],
     store,
@@ -235,6 +239,7 @@ def _dedup_and_fetch_parents(
 
 # --- публичные функции поиска ---
 
+
 def search(query: str, bm25_terms: str | None = None) -> list[SearchResult]:
     """
     Поиск по базе знаний. Возвращает parent-чанки.
@@ -277,16 +282,19 @@ def search_with_detail(
 
 # --- фабрика search-функции для произвольной коллекции (eval) ---
 
+
 def make_search_fn(collection_name: str):
     """
     Создаёт search-функцию для произвольной коллекции Qdrant.
     Используется в eval/compare_splitters.py.
     """
     from pathlib import Path
+
     from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
+
     from core.config import _find_project_root
-    from retriever.indexer import _find_bm25_model_path
     from retriever.embeddings import get_embeddings
+    from retriever.indexer import _find_bm25_model_path
 
     cfg = get_config()
     qdrant_path = Path(cfg.qdrant.path)
@@ -367,6 +375,7 @@ if __name__ == "__main__":
     print(f"\nCHILDREN (что нашёл поиск, {len(_children)}):")
     # группируем children по parent_id
     from collections import defaultdict
+
     by_parent = defaultdict(list)
     for c in _children:
         by_parent[c.metadata.parent_id or ""].append(c)

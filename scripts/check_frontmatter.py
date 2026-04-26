@@ -2,9 +2,10 @@
 """Frontmatter Checker
 Проверяет наличие YAML frontmatter (начинается и заканчивается '---') в *.md файлах.
 """
-from pathlib import Path
+
 import sys
-from typing import List
+from pathlib import Path
+
 
 def has_frontmatter(path: Path) -> bool:
     try:
@@ -20,7 +21,8 @@ def has_frontmatter(path: Path) -> bool:
     except Exception:
         return False
 
-def check_base(base_path: Path) -> List[Path]:
+
+def check_base(base_path: Path) -> list[Path]:
     base = Path(base_path)
     missing = []
     for md in base.rglob("*.md"):
@@ -31,10 +33,18 @@ def check_base(base_path: Path) -> List[Path]:
             missing.append(md)
     return sorted(missing, key=lambda p: str(p))
 
+
 def main():
-    base = Path("/Users/mikhail/Documents/Obsidian/Основное")
+    import os
+
+    default = os.environ.get("OBSIDIAN_VAULT", "")
     if len(sys.argv) > 1:
         base = Path(sys.argv[1])
+    elif default:
+        base = Path(default)
+    else:
+        print("Укажи путь к хранилищу: python -m scripts.check_frontmatter /path/to/vault")
+        sys.exit(1)
     missing = check_base(base)
     if missing:
         print("Файлы без frontmatter:")
@@ -43,6 +53,7 @@ def main():
         sys.exit(2)
     else:
         print("Все файлы имеют frontmatter.")
+
 
 if __name__ == "__main__":
     main()

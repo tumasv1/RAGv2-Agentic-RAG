@@ -17,7 +17,6 @@ from interfaces.web.schemas import (
     ReindexStatus,
 )
 
-
 router = APIRouter(prefix="/api", tags=["admin"])
 
 
@@ -28,7 +27,9 @@ async def api_health() -> HealthResponse:
 
 
 @router.post("/reindex", response_model=ReindexStartResponse)
-async def api_reindex(force: bool = Query(False, description="Полная переиндексация")) -> ReindexStartResponse:
+async def api_reindex(
+    force: bool = Query(False, description="Полная переиндексация"),
+) -> ReindexStartResponse:
     """
     Запускает индексацию в фоновом треде (same process).
 

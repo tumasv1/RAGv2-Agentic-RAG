@@ -81,6 +81,42 @@ function initChat() {
   const history = document.getElementById("chat-history");
   const threadIdEl = document.getElementById("thread-id");
 
+  // ── Фикс мобильной клавиатуры ────────────────────────────────────────
+  // Visual Viewport API: --vh учитывает реальную высоту видимой области
+  // (уменьшается когда открыта клавиатура на iOS и Android)
+  const applyVh = () => {
+    const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.documentElement.style.setProperty("--vh", h + "px");
+    // Сбрасываем прокрутку body — браузер прокручивает её при открытии клавиатуры,
+    // из-за этого топбар уезжает вверх за пределы экрана
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+  applyVh();
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", () => {
+      applyVh();
+      // После пересчёта высоты скроллим историю в самый низ
+      requestAnimationFrame(() => {
+        if (history) history.scrollTo({ top: history.scrollHeight });
+      });
+    });
+  }
+
+  // Измеряем высоту топбара и передаём в CSS — нужно для padding-top контейнера
+  const topbar = document.querySelector(".topbar");
+  if (topbar) {
+    document.documentElement.style.setProperty(
+      "--topbar-h", topbar.getBoundingClientRect().height + "px"
+    );
+  }
+
+  // Кнопка «Отправить» не должна забирать фокус с textarea:
+  // без этого клавиатура скрывается в момент нажатия кнопки
+  const sendBtn = form.querySelector(".btn-send");
+  if (sendBtn) {
+    sendBtn.addEventListener("mousedown", e => e.preventDefault());
+  }
+
   // Enter → отправить, Shift+Enter → перенос строки
   qTa.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && !ev.shiftKey) {
@@ -96,6 +132,7 @@ function initChat() {
 
     hide(banner);
     qTa.value = "";
+    qTa.focus();                       // сразу возвращаем фокус — клавиатура остаётся открытой
     appendChatMsg("user", question);   // сначала сообщение пользователя
     showTyping(history);               // затем индикатор «печатает…» на месте ответа
 
@@ -476,4 +513,12 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+// Регистрация service worker для PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .catch(err => console.warn('SW регистрация не удалась:', err));
+  });
 }

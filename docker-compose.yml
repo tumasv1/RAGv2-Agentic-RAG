@@ -1,12 +1,47 @@
 services:
   qdrant:
     image: qdrant/qdrant:v1.17.1
+    restart: unless-stopped
     ports:
       - "6333:6333"   # REST API
       - "6334:6334"   # gRPC
     volumes:
       - qdrant_storage:/qdrant/storage
+
+  webdav:
+    image: bytemark/webdav
     restart: unless-stopped
+    ports:
+      - "5005:80"
+    environment:
+      AUTH_TYPE: Basic
+      USERNAME: obsidian
+      PASSWORD: ${WEBDAV_PASSWORD}
+    volumes:
+      - obsidian_vault:/var/lib/dav/data
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      # Переопределяем значения из config.yaml — внутри docker-compose qdrant доступен по имени сервиса
+      QDRANT_URL: http://qdrant:6333
+      OBSIDIAN_VAULT: /vault
+    volumes:
+      - ragv2_data:/app/data
+      - hf_cache:/cache/huggingface
+      - fastembed_cache:/cache/fastembed
+      - obsidian_vault:/vault:ro   # тот же volume что и у webdav, только для чтения
+    depends_on:
+      - qdrant
+      - webdav
 
 volumes:
   qdrant_storage:
+  ragv2_data:
+  hf_cache:
+  fastembed_cache:
+  obsidian_vault:

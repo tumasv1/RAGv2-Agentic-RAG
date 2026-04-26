@@ -5,14 +5,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, time as _dt_time
+from datetime import datetime
+from datetime import time as _dt_time
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import Request, Response
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
-
 
 # ── Jinja2-шаблоны (синглтон) ───────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ def get_templates() -> Jinja2Templates:
 # ── Сессии через HTTP-cookie ────────────────────────────────────────────────
 
 COOKIE_NAME = "rag_thread_id"
-COOKIE_MAX_AGE = 24 * 60 * 60   # 24 часа
+COOKIE_MAX_AGE = 24 * 60 * 60  # 24 часа
 
 
 def get_or_create_thread_id(request: Request, response: Response) -> str:
