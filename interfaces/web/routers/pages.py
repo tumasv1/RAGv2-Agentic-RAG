@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, Form, Request
 
 from interfaces.web.deps import get_or_create_thread_id, get_templates
 
-
 router = APIRouter()
 
 
@@ -116,8 +115,8 @@ async def debug_run(
     thread_id берём из формы если заполнен — для воспроизведения конкретной сессии.
     Иначе — cookie.
     """
-    import time
     import json as _json
+    import time
 
     from agent import ask_debug, get_mermaid
     from interfaces.web.schemas import AskResponse
@@ -204,7 +203,7 @@ async def chunks_page(
 
     Поиск идёт через retriever.search.search() напрямую, без агента.
     """
-    from interfaces.web.routers.search import _run_search, _results_to_dto
+    from interfaces.web.routers.search import _results_to_dto, _run_search
 
     templates = get_templates()
     results_dto: list = []

@@ -2,8 +2,18 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>{% block title %}Agentic RAG{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/icons/icon-16.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#111827">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RAG">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='css/theme-geo.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='css/theme-minimal.css') }}">

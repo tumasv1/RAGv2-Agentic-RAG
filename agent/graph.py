@@ -31,28 +31,30 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
-from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import tools_condition
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import tools_condition
 
-from core.config import get_config
-from core.llm_client import get_llm
-from core.types import AgentResponse
 from agent import sessions as agent_sessions
-from agent.state import AgentState
 from agent.nodes import (
     agent_node,
-    tool_node_with_counter,
-    generate_node,
     check_iteration_limit,
+    generate_node,
+    tool_node_with_counter,
 )
 from agent.prompts import SYSTEM_PROMPT, TITLE_PROMPT
+from agent.state import AgentState
 from agent.tracer import AgentTracer, DebugTrace
+from core.config import get_config
+from core.formatting import strip_sources_line
+from core.llm_client import get_llm
+from core.types import AgentResponse
 
 logger = logging.getLogger(__name__)
 
 
 # --- сборка графа ---
+
 
 def _build_graph() -> StateGraph:
     """
@@ -119,17 +121,16 @@ def get_graph():
         db_path = Path(cfg.persistence.db_path)
         if not db_path.is_absolute():
             from core.config import _find_project_root
+
             db_path = _find_project_root() / db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         # autocommit-режим + общее соединение для checkpointer
-        _ckpt_conn = sqlite3.connect(
-            str(db_path), check_same_thread=False, isolation_level=None
-        )
+        _ckpt_conn = sqlite3.connect(str(db_path), check_same_thread=False, isolation_level=None)
         _ckpt_conn.execute("PRAGMA journal_mode=WAL")
 
         _checkpointer = SqliteSaver(_ckpt_conn)
-        _checkpointer.setup()     # создаст таблицы checkpoints/writes если их нет
+        _checkpointer.setup()  # создаст таблицы checkpoints/writes если их нет
 
         agent_sessions.init_db()  # создаст таблицу sessions
 
@@ -142,6 +143,7 @@ def get_graph():
 
 
 # --- главная функция ---
+
 
 def ask(
     question: str,
@@ -213,6 +215,7 @@ def ask(
 
 
 # --- отладочные функции ---
+
 
 def ask_debug(
     question: str,
@@ -303,6 +306,7 @@ def get_mermaid() -> str:
 
 # --- загрузка истории для UI ---
 
+
 def load_messages_for_ui(thread_id: str) -> list[dict]:
     """
     Возвращает упрощённую историю сессии для рендеринга в веб-чате.
@@ -342,19 +346,13 @@ def load_messages_for_ui(thread_id: str) -> list[dict]:
             if not content:
                 continue
             sources = _extract_sources(content)
-            text = _strip_sources_line(content)
+            text = strip_sources_line(content)
             result.append({"role": "agent", "content": text, "sources": sources})
     return result
 
 
-def _strip_sources_line(text: str) -> str:
-    """Убирает хвост «Источники: ...» из текста ответа (как в web/schemas.py)."""
-    return re.sub(
-        r"\n+[Ии]сточники:\s*.+$", "", text, flags=re.DOTALL
-    ).rstrip()
-
-
 # --- полная цепочка вызовов для debug-дашборда ---
+
 
 def load_chain_for_debug(thread_id: str) -> list[dict]:
     """
@@ -395,16 +393,20 @@ def load_chain_for_debug(thread_id: str) -> list[dict]:
                 step_calls = []
                 for tc in calls:
                     # tc может быть dict или объектом в зависимости от версии LangChain
-                    tc_id   = tc.get("id", "")   if isinstance(tc, dict) else getattr(tc, "id", "")
-                    tc_name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
-                    tc_args = tc.get("args", {}) if isinstance(tc, dict) else getattr(tc, "args", {})
+                    tc_id = tc.get("id", "") if isinstance(tc, dict) else getattr(tc, "id", "")
+                    tc_name = (
+                        tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
+                    )
+                    tc_args = (
+                        tc.get("args", {}) if isinstance(tc, dict) else getattr(tc, "args", {})
+                    )
                     if tc_id:
                         tool_name_index[tc_id] = tc_name
                     step_calls.append({"name": tc_name, "args": tc_args})
                 chain.append({"type": "tool_call", "calls": step_calls})
             else:
                 content = msg.content if isinstance(msg.content, str) else str(msg.content)
-                text = _strip_sources_line(content).strip()
+                text = strip_sources_line(content).strip()
                 if text:
                     sources = _extract_sources(content)
                     chain.append({"type": "answer", "content": text, "sources": sources})
@@ -414,17 +416,20 @@ def load_chain_for_debug(thread_id: str) -> list[dict]:
             tc_id = getattr(msg, "tool_call_id", "") or ""
             name = tool_name_index.get(tc_id, "tool")
             truncated = len(content) > 1200
-            chain.append({
-                "type": "tool_result",
-                "name": name,
-                "content": content[:1200],
-                "truncated": truncated,
-            })
+            chain.append(
+                {
+                    "type": "tool_result",
+                    "name": name,
+                    "content": content[:1200],
+                    "truncated": truncated,
+                }
+            )
 
     return chain
 
 
 # --- генерация названия сессии ---
+
 
 def generate_title(question: str, answer: str) -> str:
     """
@@ -458,6 +463,7 @@ def generate_title(question: str, answer: str) -> str:
 
 
 # --- вспомогательные функции ---
+
 
 def _extract_sources(text: str) -> list[str]:
     """

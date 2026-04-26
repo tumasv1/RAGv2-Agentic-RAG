@@ -14,7 +14,7 @@
 }
 
 /* ── Базовые ─────────────────────────────────────────────────────────── */
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -237,8 +237,12 @@ label { display: block; margin-bottom: .7rem; font-size: .9rem; color: #374151; 
 
 /* ── Чат: полноэкранный layout (класс на body) ───────────────────────── */
 body.chat-page {
+  /* --vh выставляется JS через Visual Viewport API (учитывает клавиатуру) */
   height: 100vh;
+  height: 100dvh;
+  height: var(--vh, 100dvh);
   overflow: hidden;
+  overscroll-behavior: none; /* запрещаем «резиновый» скролл body */
   display: flex;
   flex-direction: column;
 }
@@ -300,7 +304,8 @@ body.chat-page #chat-history {
 body.chat-page .chat-input-area {
   flex-shrink: 0;
   margin-top: 0;
-  padding: .6rem 0 .8rem;
+  /* env(safe-area-inset-bottom) — отступ от домашнего индикатора на iPhone */
+  padding: .6rem 0 calc(.8rem + env(safe-area-inset-bottom, 0px));
   background: var(--bg);
   border-top: 1px solid var(--border);
 }
@@ -519,6 +524,18 @@ body.chat-page .topbar-brand { display: none; }
   body.chat-page .topbar-inner { padding-left: 0; }
   body.chat-page .sidebar-toggle { display: inline-flex; }
   body.chat-page .topbar-brand  { display: flex; } /* sidebar скрыт — показываем лого в топбаре */
+
+  /* Фиксируем топбар: браузер прокручивает body при открытии клавиатуры,
+     position: fixed гарантирует, что топбар всегда на месте */
+  body.chat-page .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+  }
+  /* Отступ под фиксированный топбар — высота задаётся из JS через --topbar-h */
+  body.chat-page .container {
+    padding-top: var(--topbar-h, 52px);
+  }
 
   .main-area { margin-left: 0; }
 

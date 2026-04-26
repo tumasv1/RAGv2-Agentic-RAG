@@ -29,6 +29,7 @@ def main() -> None:
     args = parser.parse_args()
 
     import uvicorn
+
     uvicorn.run(
         "interfaces.web.app:app",
         host=args.host,

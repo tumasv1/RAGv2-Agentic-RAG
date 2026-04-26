@@ -63,8 +63,13 @@ def get_current_date() -> str:
     """
     now = datetime.now()
     weekdays = [
-        "понедельник", "вторник", "среда", "четверг",
-        "пятница", "суббота", "воскресенье",
+        "понедельник",
+        "вторник",
+        "среда",
+        "четверг",
+        "пятница",
+        "суббота",
+        "воскресенье",
     ]
     return f"{now.strftime('%d.%m.%Y %H:%M')} ({weekdays[now.weekday()]})"
 
@@ -76,6 +81,7 @@ def create_hub_note() -> str:
     """
     try:
         from scripts.generate_hub_files import main as generate_hubs
+
         result = generate_hubs()
         return result
     except Exception as e:

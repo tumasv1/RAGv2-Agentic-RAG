@@ -18,11 +18,11 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from interfaces.web.schemas import ErrorResponse
 
-
 log = logging.getLogger("ragv2.web.errors")
 
 
 # ── Кастомные исключения ─────────────────────────────────────────────────────
+
 
 class AppError(Exception):
     """Базовое исключение веб-слоя. Все наши ошибки наследуются от него."""
@@ -38,23 +38,27 @@ class AppError(Exception):
 
 class LlmUnavailableError(AppError):
     """LLM-провайдер недоступен (сеть, 5xx, таймаут, auth)."""
+
     status_code = 503
     error_code = "llm_unavailable"
 
 
 class SearchBackendError(AppError):
     """Ошибка retrieval-слоя (Qdrant, эмбеддинги)."""
+
     status_code = 503
     error_code = "search_failed"
 
 
 class ReindexError(AppError):
     """Ошибка процесса переиндексации."""
+
     status_code = 500
     error_code = "reindex_failed"
 
 
 # ── Регистрация хендлеров ────────────────────────────────────────────────────
+
 
 def register_error_handlers(app: FastAPI) -> None:
     """Подключает глобальные обработчики ошибок к FastAPI."""
@@ -91,6 +95,7 @@ def register_error_handlers(app: FastAPI) -> None:
 def _render_error_page(request: Request, status_code: int, message: str) -> HTMLResponse:
     """Рендерит простую HTML-страницу ошибки."""
     from interfaces.web.deps import get_templates
+
     templates = get_templates()
     return templates.TemplateResponse(
         request,

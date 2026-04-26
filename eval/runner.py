@@ -29,8 +29,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from core.llm_client import get_llm
 from core.types import SearchResult
 from retriever.formatting import build_parent_prefix
-from retriever.search import search, search_with_detail
-
+from retriever.search import search_with_detail
 
 # --- Промпт для генерации ответа ---
 # Минимальный: только правило «отвечай по контексту».
@@ -45,15 +44,18 @@ _EVAL_SYSTEM_PROMPT = """\
 
 # --- Вспомогательная структура для деталей чанков ---
 
+
 @dataclass
 class ChunkInfo:
     """Детали одного чанка для отчёта."""
-    source: str      # имя файла
-    score: float     # score после retrieval / reranker
-    preview: str     # первые N символов текста
+
+    source: str  # имя файла
+    score: float  # score после retrieval / reranker
+    preview: str  # первые N символов текста
 
 
 # --- Результат прогона ---
+
 
 @dataclass
 class EvalDataset:
@@ -62,26 +64,34 @@ class EvalDataset:
 
     to_ragas_dataset() конвертирует в формат, который принимает ragas.evaluate().
     """
+
     questions: list[str] = field(default_factory=list)
     answers: list[str] = field(default_factory=list)
     contexts: list[list[str]] = field(default_factory=list)
     ground_truths: list[str] = field(default_factory=list)
-    chunks_detail: list[list[ChunkInfo]] = field(default_factory=list)         # parents
-    chunks_detail_children: list[list[ChunkInfo]] = field(default_factory=list)  # children (что нашёл поиск)
-    has_answers: list[bool] = field(default_factory=list)  # False если LLM ответил "Не нашёл ответа в базе знаний"
+    chunks_detail: list[list[ChunkInfo]] = field(default_factory=list)  # parents
+    chunks_detail_children: list[list[ChunkInfo]] = field(
+        default_factory=list
+    )  # children (что нашёл поиск)
+    has_answers: list[bool] = field(
+        default_factory=list
+    )  # False если LLM ответил "Не нашёл ответа в базе знаний"
     cases: list[dict] = field(default_factory=list)
 
     def to_ragas_dataset(self) -> Dataset:
         """Конвертирует в HuggingFace Dataset для ragas.evaluate()."""
-        return Dataset.from_dict({
-            "question": self.questions,
-            "answer": self.answers,
-            "contexts": self.contexts,
-            "ground_truth": self.ground_truths,
-        })
+        return Dataset.from_dict(
+            {
+                "question": self.questions,
+                "answer": self.answers,
+                "contexts": self.contexts,
+                "ground_truth": self.ground_truths,
+            }
+        )
 
 
 # --- Функции ---
+
 
 def load_golden_set(path: Path | None = None, n: int | None = None) -> list[dict]:
     """
@@ -124,9 +134,7 @@ def generate_answer(question: str, contexts: list[str]) -> str:
     llm = get_llm()
 
     # собираем контекст — нумерованные чанки
-    context_str = "\n\n---\n\n".join(
-        f"[Чанк {i}]\n{text}" for i, text in enumerate(contexts, 1)
-    )
+    context_str = "\n\n---\n\n".join(f"[Чанк {i}]\n{text}" for i, text in enumerate(contexts, 1))
 
     messages = [
         SystemMessage(content=_EVAL_SYSTEM_PROMPT),
@@ -190,7 +198,9 @@ def run_golden_set(
         # has_answer: False если LLM сам сказал что не нашёл ответа
         has_answer = "Не нашёл ответа в базе знаний" not in answer
 
-        print(f"    → parents: {len(parents)} | children: {len(children)} | has_answer={has_answer}")
+        print(
+            f"    → parents: {len(parents)} | children: {len(children)} | has_answer={has_answer}"
+        )
 
         # 3. собираем данные
         data.questions.append(q)
@@ -206,21 +216,25 @@ def run_golden_set(
         for i, r in enumerate(parents, 1):
             prefix = build_parent_prefix(i, r.metadata)
             preview_text = f"{prefix}\n{r.content[:chunk_preview_len]}"
-            parent_chunks.append(ChunkInfo(
-                source=r.metadata.file_name,
-                score=round(r.score, 3),
-                preview=preview_text,
-            ))
+            parent_chunks.append(
+                ChunkInfo(
+                    source=r.metadata.file_name,
+                    score=round(r.score, 3),
+                    preview=preview_text,
+                )
+            )
         data.chunks_detail.append(parent_chunks)
 
         # child preview: raw content (prefix уже внутри content)
-        data.chunks_detail_children.append([
-            ChunkInfo(
-                source=r.metadata.file_name,
-                score=round(r.score, 3),
-                preview=r.content[:chunk_preview_len].replace("\n", " "),
-            )
-            for r in children
-        ])
+        data.chunks_detail_children.append(
+            [
+                ChunkInfo(
+                    source=r.metadata.file_name,
+                    score=round(r.score, 3),
+                    preview=r.content[:chunk_preview_len].replace("\n", " "),
+                )
+                for r in children
+            ]
+        )
 
     return data

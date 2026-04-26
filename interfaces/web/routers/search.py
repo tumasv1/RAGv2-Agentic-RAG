@@ -16,7 +16,6 @@ from core.types import SearchResult
 from interfaces.web.errors import SearchBackendError
 from interfaces.web.schemas import SearchResponse, SearchResultDTO
 
-
 router = APIRouter(prefix="/api", tags=["search"])
 
 

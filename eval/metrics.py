@@ -35,6 +35,7 @@ from retriever.embeddings import get_embeddings
 # OpenRouter — OpenAI-совместимый API-агрегатор
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
+
 def setup_ragas_judge_llm() -> LangchainLLMWrapper:
     """
     Создаёт LLM-судью для RAGAS через OpenRouter.

@@ -32,24 +32,27 @@ logger = logging.getLogger(__name__)
 
 # --- DTO ---
 
+
 @dataclass
 class SessionMeta:
     """Метаданные одной сессии диалога."""
+
     thread_id: str
     title: str | None
     first_question: str | None
-    created_at: float           # unix-timestamp
-    updated_at: float           # unix-timestamp
+    created_at: float  # unix-timestamp
+    updated_at: float  # unix-timestamp
     message_count: int
 
 
 # --- внутреннее состояние ---
 
-_lock = threading.Lock()                # сериализуем DDL + cleanup
-_last_cleanup_at: float = 0.0           # время последнего ленивого cleanup
+_lock = threading.Lock()  # сериализуем DDL + cleanup
+_last_cleanup_at: float = 0.0  # время последнего ленивого cleanup
 
 
 # --- подключение к БД ---
+
 
 def _db_path() -> Path:
     """Путь к SQLite-файлу из конфига + создание родительской папки."""
@@ -58,6 +61,7 @@ def _db_path() -> Path:
     if not path.is_absolute():
         # относительные пути — от корня проекта (там же, где config.yaml)
         from core.config import _find_project_root
+
         path = _find_project_root() / path
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
@@ -109,13 +113,12 @@ def init_db() -> None:
 
 # --- CRUD ---
 
+
 def get(thread_id: str) -> SessionMeta | None:
     """Возвращает метаданные сессии или None, если её нет."""
     conn = _connect()
     try:
-        row = conn.execute(
-            "SELECT * FROM sessions WHERE thread_id = ?", (thread_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM sessions WHERE thread_id = ?", (thread_id,)).fetchone()
         return _row_to_meta(row) if row else None
     finally:
         conn.close()
@@ -268,7 +271,8 @@ def cleanup_old(retention_days: int | None = None) -> int:
             conn.commit()
             logger.info(
                 "sessions: cleanup удалил %d сессий старше %d дней",
-                len(tids), retention_days,
+                len(tids),
+                retention_days,
             )
             return len(tids)
         except Exception:
@@ -279,6 +283,7 @@ def cleanup_old(retention_days: int | None = None) -> int:
 
 
 # --- internal ---
+
 
 def _row_to_meta(row: sqlite3.Row) -> SessionMeta:
     return SessionMeta(

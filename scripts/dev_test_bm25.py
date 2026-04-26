@@ -11,8 +11,6 @@
     python -m retriever.test_bm25
 """
 
-from qdrant_client import models as qmodels
-
 from core.config import get_config
 from core.types import SearchResult
 from retriever.indexer import get_qdrant_store
@@ -108,7 +106,7 @@ if __name__ == "__main__":
         if results:
             scores = [r.score for r in results]
             print("\n" + "=" * 60)
-            print(f"Статистика скоров:")
+            print("Статистика скоров:")
             print(f"  Мин:     {min(scores):.4f}")
             print(f"  Макс:    {max(scores):.4f}")
             print(f"  Средний: {sum(scores) / len(scores):.4f}")
@@ -116,6 +114,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:

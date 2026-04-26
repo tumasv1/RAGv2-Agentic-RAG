@@ -20,7 +20,6 @@ from langchain_openai import ChatOpenAI
 
 from core.config import get_config
 
-
 # --- Синглтон ---
 
 _llm: ChatOpenAI | None = None

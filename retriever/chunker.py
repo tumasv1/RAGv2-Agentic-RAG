@@ -30,7 +30,6 @@ from langchain_text_splitters import (
 from core.config import get_config
 from core.types import ChunkMetadata
 
-
 # --- Регулярки ---
 
 # Frontmatter: YAML-блок между двумя ---
@@ -56,20 +55,21 @@ HEADERS_TO_SPLIT = [
 
 # Разделители для RCTS — заголовки идут первыми, чтобы RCTS резал по границам секций
 SEPARATORS = [
-    "\n# ",            # H1
-    "\n## ",           # H2
-    "\n### ",          # H3
-    "\n#### ",         # H4+
-    "\n---",           # горизонтальная линия
-    "\n```",           # блоки кода
-    "\n> [!",          # Obsidian callouts
-    "\n\n",            # параграфы
-    "\n",              # строки
-    " ",               # слова
+    "\n# ",  # H1
+    "\n## ",  # H2
+    "\n### ",  # H3
+    "\n#### ",  # H4+
+    "\n---",  # горизонтальная линия
+    "\n```",  # блоки кода
+    "\n> [!",  # Obsidian callouts
+    "\n\n",  # параграфы
+    "\n",  # строки
+    " ",  # слова
 ]
 
 
 # --- Вспомогательные функции ---
+
 
 def _extract_frontmatter(text: str) -> tuple[dict, str]:
     """Достаёт YAML frontmatter, возвращает (dict, текст без frontmatter)."""
@@ -82,17 +82,19 @@ def _extract_frontmatter(text: str) -> tuple[dict, str]:
             return {}, text
     except yaml.YAMLError:
         return {}, text
-    return fm_data, text[match.end():]
+    return fm_data, text[match.end() :]
 
 
 def _normalize_wikilinks(text: str) -> str:
     """[[Проекты/Работа|Работа]] → Работа; [[Заметка]] → Заметка."""
+
     def _replace(match: re.Match) -> str:
         alias = match.group("alias")
         if alias:
             return alias
         target = match.group("target")
         return target.rsplit("/", 1)[-1] if "/" in target else target
+
     return WIKILINK_PATTERN.sub(_replace, text)
 
 
@@ -120,10 +122,11 @@ def _generate_chunk_id(file_path: str, index: int, kind: str) -> str:
 
     kind разделяет пространство id для child'ов и parent'ов.
     """
-    return hashlib.md5(f"{file_path}:{kind}:{index}".encode("utf-8")).hexdigest()
+    return hashlib.md5(f"{file_path}:{kind}:{index}".encode()).hexdigest()
 
 
 # --- Главная функция ---
+
 
 def chunk_file(
     file_path: Path,
@@ -299,6 +302,7 @@ if __name__ == "__main__":
     print(f"\n=== CHILDREN ({len(children)}) ===")
     # сгруппируем по parent_id
     from collections import defaultdict
+
     by_parent: dict[str, list[tuple[str, ChunkMetadata]]] = defaultdict(list)
     for text, meta in children:
         by_parent[meta.parent_id or ""].append((text, meta))
