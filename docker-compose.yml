@@ -6,7 +6,7 @@ services:
       - "6333:6333"   # REST API
       - "6334:6334"   # gRPC
     volumes:
-      - qdrant_storage:/qdrant/storage
+      - ./qdrant_data:/qdrant/storage
 
   webdav:
     image: bytemark/webdav
