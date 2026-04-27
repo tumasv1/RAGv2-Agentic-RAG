@@ -481,6 +481,7 @@ body.chat-page .topbar-brand { display: none; }
   align-items: center;
   justify-content: center;
   padding: 0;
+  margin-left: 8px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -524,6 +525,16 @@ body.chat-page .topbar-brand { display: none; }
   body.chat-page .topbar-inner { padding-left: 0; }
   body.chat-page .sidebar-toggle { display: inline-flex; }
   body.chat-page .topbar-brand  { display: flex; } /* sidebar скрыт — показываем лого в топбаре */
+
+  /* На мобиле лого уже есть в топбаре — скрываем дубль в сайдбаре */
+  .sidebar-brand {
+    display: none;
+  }
+
+  /* Сдвигаем содержимое сайдбара ниже фиксированного топбара */
+  .sidebar {
+    padding-top: calc(var(--topbar-h, 52px) + 12px);
+  }
 
   /* Фиксируем топбар: браузер прокручивает body при открытии клавиатуры,
      position: fixed гарантирует, что топбар всегда на месте */
