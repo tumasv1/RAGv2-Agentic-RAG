@@ -1,0 +1,7 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.9   # та же версия что установлена локально
+    hooks:
+      - id: ruff
+        args: [--fix]   # автоматически исправляет безопасные ошибки
+      - id: ruff-format
