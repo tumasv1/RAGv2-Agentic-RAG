@@ -21,8 +21,27 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 log = logging.getLogger("ragv2.web")
+
+
+class ProxyHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Читает X-Forwarded-* заголовки от обратного прокси (nginx, etc.)
+    и обновляет request.url, чтобы url_for() генерировал правильные URLs.
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Читаем заголовки
+        if x_forwarded_proto := request.headers.get("x-forwarded-proto"):
+            # Переписываем scheme в request, чтобы Starlette/FastAPI это видели
+            request.scope["scheme"] = x_forwarded_proto
+        if x_forwarded_host := request.headers.get("x-forwarded-host"):
+            request.scope["server"] = (x_forwarded_host, 443 if request.scope["scheme"] == "https" else 80)
+
+        response = await call_next(request)
+        return response
 
 
 def create_app() -> FastAPI:
@@ -42,6 +61,9 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url=None,
     )
+
+    # ── Proxy middleware (для работы за nginx/reverse proxy с HTTPS) ──
+    app.add_middleware(ProxyHeadersMiddleware)
 
     # ── Static (CSS/JS) ──
     static_dir = Path(__file__).parent / "static"

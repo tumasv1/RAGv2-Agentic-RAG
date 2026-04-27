@@ -515,6 +515,16 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
+// Подхватываем цвет фона из активной темы и ставим его в theme-color,
+// чтобы статус-бар и нав-бар Android совпадали с фоном чата в PWA-режиме
+function updateThemeColor() {
+  const color = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bg').trim();
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta && color) meta.setAttribute('content', color);
+}
+updateThemeColor();
+
 // Регистрация service worker для PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
