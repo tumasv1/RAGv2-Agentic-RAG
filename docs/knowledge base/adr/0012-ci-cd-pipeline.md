@@ -177,8 +177,6 @@ pre-commit install
 
 ## Ссылки
 
-- Шаблон ADR: [0000-template.md](0000-template.md)
 - Тесты: `/tests/test_config.py`
 - Makefile: `/Makefile`
 - GitHub Actions: `.github/workflows/ci.yml`
-- Документация: [CI-CD-процесс.md](../CI-CD-процесс.md)
