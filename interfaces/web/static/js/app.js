@@ -86,10 +86,10 @@ function initChat() {
   // (уменьшается когда открыта клавиатура на iOS и Android)
   const applyVh = () => {
     const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    // --vh = реальная высота видимой области (уменьшается когда открыта клавиатура).
+    // body.chat-page имеет position:fixed, поэтому layout viewport не скроллится
+    // и scrollTo больше не нужен.
     document.documentElement.style.setProperty("--vh", h + "px");
-    // Сбрасываем прокрутку body — браузер прокручивает её при открытии клавиатуры,
-    // из-за этого топбар уезжает вверх за пределы экрана
-    window.scrollTo({ top: 0, behavior: "instant" });
   };
   applyVh();
   if (window.visualViewport) {
@@ -108,6 +108,19 @@ function initChat() {
     document.documentElement.style.setProperty(
       "--topbar-h", topbar.getBoundingClientRect().height + "px"
     );
+  }
+
+  // Измеряем высоту поля ввода и передаём в CSS — нужно для padding-bottom
+  // chat-history, чтобы сообщения не прятались за фиксированным input-ом на мобиле
+  const updateInputH = () => {
+    document.documentElement.style.setProperty(
+      "--input-h", form.getBoundingClientRect().height + "px"
+    );
+  };
+  updateInputH();
+  // Пересчитываем при изменении размера формы (например, textarea растягивается)
+  if (window.ResizeObserver) {
+    new ResizeObserver(updateInputH).observe(form);
   }
 
   // Кнопка «Отправить» не должна забирать фокус с textarea:

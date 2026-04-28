@@ -6,6 +6,7 @@
 
 /* ── База ────────────────────────────────────────────────────────────── */
 body.theme-minimal {
+  --bg: #faf9f6;           /* переопределяем переменную для градиента */
   background: #faf9f6;
   color: #0f0f0f;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;

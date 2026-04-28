@@ -308,6 +308,20 @@ body.chat-page .chat-input-area {
   padding: .6rem 0 calc(.8rem + env(safe-area-inset-bottom, 0px));
   background: var(--bg);
   border-top: 1px solid var(--border);
+  position: relative; /* нужен для ::before */
+}
+
+/* Градиентная подложка: сообщения плавно исчезают, не обрезаясь резко */
+body.chat-page .chat-input-area::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  bottom: 100%;          /* прямо над полем ввода */
+  left: -1.2rem;         /* перекрываем padding main-area */
+  right: -1.2rem;
+  height: 3rem;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  z-index: 1;
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────── */
@@ -522,9 +536,21 @@ body.chat-page .topbar-brand { display: none; }
 
 /* ── Адаптив: < 1024px — выезжающий sidebar ─────────────────────────── */
 @media (max-width: 1023px) {
-  body.chat-page .topbar-inner { padding-left: 0; }
+  body.chat-page .topbar-inner {
+    padding-left: 0;
+    position: relative; /* нужен для абсолютного центрирования лого */
+  }
   body.chat-page .sidebar-toggle { display: inline-flex; }
-  body.chat-page .topbar-brand  { display: flex; } /* sidebar скрыт — показываем лого в топбаре */
+
+  /* Лого абсолютно центрируется в топбаре — правый край ≈ на уровне
+     правой границы сообщений (оба имеют padding 1.2rem от края) */
+  body.chat-page .topbar-brand {
+    display: flex;
+    position: absolute;
+    right: 1.5rem;   /* совпадает с padding-right main-area */
+    top: 50%;
+    transform: translateY(-50%);
+  }
 
   /* На мобиле лого уже есть в топбаре — скрываем дубль в сайдбаре */
   .sidebar-brand {
@@ -549,6 +575,20 @@ body.chat-page .topbar-brand { display: none; }
   }
 
   .main-area { margin-left: 0; }
+
+  /* position: fixed на body — запрещает iOS сдвигать layout viewport
+     при открытии клавиатуры (хедер и input перестают «улетать») */
+  body.chat-page {
+    position: fixed;
+    width: 100%;
+  }
+  /* Input снова flex-child — высота тела управляется через --vh из JS */
+  body.chat-page .chat-input-area {
+    position: relative;
+  }
+  body.chat-page #chat-history {
+    padding-bottom: .4rem;
+  }
 
   .sidebar {
     transform: translateX(-100%);
