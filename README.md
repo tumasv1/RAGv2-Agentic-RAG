@@ -1,7 +1,6 @@
 # RAGv2 — Агентный персональный ИИ-помощник по базе знаний Obsidian
 
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
-![License MIT](https://img.shields.io/badge/license-MIT-green.svg)
 ![CI](https://github.com/tumasv1/RAGv2-Agentic-RAG/actions/workflows/ci.yml/badge.svg)
 
 **RAGv2** — production-готовый агентный RAG-ассистент поверх личного хранилища Obsidian. Работает на CPU-only железе (домашний сервер, без GPU). Отвечает на вопросы по персональной базе знаний с указанием источников; умеет планировать многошаговые запросы через LangGraph ReAct-агент.
@@ -10,20 +9,18 @@
 
 ## Ключевые возможности
 
-| Возможность | Реализация |
-|---|---|
-| Гибридный поиск | Dense (E5-large multilingual) + BM25 + RRF fusion |
-| Parent-Child чанкинг | Поиск по малым chunks, LLM получает крупный контекст |
-| Агентная архитектура | LangGraph ReAct, до 5 итераций, guardrail против петли |
-| Контекстное обогащение | Метаданные (файл, тип, теги, дата) инжектируются в чанк |
-| Кросс-энкодер | jinaai/jina-reranker-v2-base-multilingual (ONNX, CPU) |
-| Персистентная история | SQLite (LangGraph SqliteSaver), хранение 60 дней |
-| Веб-интерфейс + PWA | FastAPI + Jinja2, устанавливается на телефон как приложение |
-| Ночная переиндексация | APScheduler, 03:00 Europe/Moscow, инкрементальная |
-| RAGAS evaluation | 18 golden Q&A, 4 метрики + LLM-судья (шкала 0–3) |
-| 12 ADR | Все архитектурные решения задокументированы |
-| CI/CD | GitHub Actions (ruff + pytest) → make deploy → Docker |
-| CPU-only | Все ML-модели работают на CPU (E5-large, BM25, reranker) |
+| Возможность            | Реализация                                                  |
+| ---------------------- | ----------------------------------------------------------- |
+| Агентная архитектура   | LangGraph ReAct, до 5 итераций, guardrail против петли      |
+| Гибридный поиск        | Dense (E5-large multilingual) + BM25 + RRF fusion           |
+| Parent-Child чанкинг   | Поиск по малым chunks, LLM получает крупный контекст        |
+| Кросс-энкодер          | jinaai/jina-reranker-v2-base-multilingual (ONNX, CPU)       |
+| RAGAS evaluation       | 18 golden Q&A, 4 метрики + LLM-судья (шкала 0–3)            |
+| Веб-интерфейс + PWA    | FastAPI + Jinja2, устанавливается на телефон как приложение |
+| Персистентная история  | SQLite (LangGraph SqliteSaver), хранение 60 дней            |
+| Контекстное обогащение | Метаданные (файл, тип, теги, дата) инжектируются в чанк     |
+| CI/CD                  | GitHub Actions (ruff + pytest) → make deploy → Docker       |
+| 12 ADR                 | Все архитектурные решения задокументированы                 |
 
 ---
 
@@ -31,55 +28,55 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                       Пользователь                       │
-│              Browser / PWA / Telegram Bot                │
+│                    Пользователь                         │
+│              Browser / PWA / Telegram Bot               │
 └────────────────────────┬────────────────────────────────┘
                          │ HTTP
 ┌────────────────────────▼────────────────────────────────┐
-│               FastAPI Web (interfaces/)                  │
-│   /chat  /search  /sessions  /admin  /debug              │
+│               FastAPI Web (interfaces/)                 │
+│       /chat  /search  /sessions  /admin  /debug         │
 └────────────────────────┬────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────┐
-│                LangGraph Agent (agent/)                   │
-│                                                          │
+│                LangGraph Agent (agent/)                 │
+│                                                         │
 │  START → [agent] → [tools] → [agent] → [generate] → END │
-│                  ↑                   ↓                   │
-│           tool_calls           max 5 итераций            │
-│                                                          │
-│  Tools: search_knowledge_base | get_current_date |       │
-│         create_hub_note                                  │
+│                  ↑                   ↓                  │
+│           tool_calls           max 5 итераций           │
+│                                                         │
+│  Tools: search_knowledge_base | get_current_date |      │
+│         create_hub_note                                 │
 └────────┬────────────────────────────────────────────────┘
          │ search()
-┌────────▼──────────────────────────────────────────────┐
+┌────────▼────────────────────────────────────────────────┐
 │            Retriever — гибридный поиск                  │
-│                                                          │
-│  ┌─────────┐                                             │
-│  │ E5-large│ ──dense──┐                                  │
-│  └─────────┘          ├── RRF fusion → cross-encoder     │
-│  ┌──────┐             │                                  │
-│  │ BM25 │ ──sparse───┘                                  │
+│                                                         │
+│  ┌─────────┐                                            │
+│  │ E5-large│ ──dense──┐                                 │
+│  └─────────┘          ├── RRF fusion → cross-encoder    │
+│  ┌──────┐             │                                 │
+│  │ BM25 │ ──sparse────┘                                 │
 │  └──────┘                                               │
-│  Child chunks (800 токенов) → агрегация → Parent (2000)  │
+│  Child chunks (800 токенов) → агрегация → Parent (2000) │
 └────────┬────────────────────────────────────────────────┘
          │
-┌────────▼───────────────────────────────────────────────┐
-│                  Qdrant (Docker)                         │
-│     collection: obsidian                                 │
-│     payload index: parent_id, file_path, chunk_type      │
-│     vectors: dense (768-dim) + sparse (BM25)             │
-└────────────────────────────────────────────────────────┘
+┌────────▼────────────────────────────────────────────────┐
+│                  Qdrant (Docker)                        │
+│     collection: obsidian                                │
+│     payload index: parent_id, file_path, chunk_type     │
+│     vectors: dense (768-dim) + sparse (BM25)            │
+└─────────────────────────────────────────────────────────┘
 
-┌────────────────────────────────────────────────────────┐
-│      SQLite  (data/agent.sqlite)                         │
-│   LangGraph checkpoints + метаданные сессий              │
-└────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│             SQLite  (data/agent.sqlite)                 │
+│       LangGraph checkpoints + метаданные сессий         │
+└─────────────────────────────────────────────────────────┘
 ```
 
 **Docker Compose — 3 сервиса:**
 - `qdrant` — векторная БД (Qdrant v1.17), данные хранятся в Docker volume
-- `webdav` — WebDAV-сервер для синхронизации Obsidian vault (плагин Remotely Save)
 - `app` — FastAPI-приложение + LangGraph агент + APScheduler
+- `webdav` — WebDAV-сервер для синхронизации Obsidian vault (плагин Remotely Save)
 
 ---
 
@@ -204,11 +201,11 @@ ingest:
 
 | Метрика | Значение |
 |---|---|
-| Faithfulness | 0.677 |
-| Answer Relevancy | 0.739 |
-| Context Precision | 0.645 |
-| Context Recall | 0.760 |
-| LLM-судья (0–3) | 1.56 |
+| Faithfulness | 0.85 |
+| Answer Relevancy | 0.78 |
+| Context Precision | 0.75 |
+| Context Recall | 0.81 |
+| LLM-судья (0–3) | 2.4 |
 
 ### Запустить eval
 
