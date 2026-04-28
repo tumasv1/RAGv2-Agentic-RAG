@@ -66,6 +66,47 @@ def start_reindex(force: bool = False) -> ReindexStatus:
     return snapshot
 
 
+def run_reindex_sync(force: bool = False) -> tuple[dict | None, str | None]:
+    """
+    Синхронный reindex для планировщика — блокирует тред до завершения.
+
+    Возвращает (stats, error). Если уже запущен — возвращает (None, "already_running").
+    Использует тот же глобальный лок, что и start_reindex(), поэтому конкурентных
+    запусков быть не может.
+    """
+    global _current
+    with _lock:
+        if _current.status == "running":
+            return None, "already_running"
+        job_id = str(uuid4())
+        _current = ReindexStatus(
+            job_id=job_id,
+            status="running",
+            started_at=time.time(),
+            force=force,
+        )
+
+    stats: dict | None = None
+    error: str | None = None
+    try:
+        from retriever.indexer import run_indexing
+
+        stats = run_indexing(force=force)
+        with _lock:
+            if _current.job_id == job_id:
+                _current = _current.model_copy(
+                    update={"status": "done", "finished_at": time.time(), "stats": stats}
+                )
+    except Exception as e:
+        error = str(e)
+        with _lock:
+            if _current.job_id == job_id:
+                _current = _current.model_copy(
+                    update={"status": "error", "finished_at": time.time(), "error": error}
+                )
+    return stats, error
+
+
 def _run_job(job_id: str, force: bool) -> None:
     """
     Фоновая работа: запускает run_indexing, обновляет статус.

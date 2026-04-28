@@ -34,7 +34,7 @@ services:
       - ragv2_data:/app/data
       - hf_cache:/cache/huggingface
       - fastembed_cache:/cache/fastembed
-      - obsidian_vault:/vault:ro   # тот же volume что и у webdav, только для чтения
+      - obsidian_vault:/vault:rw   # тот же volume что и у webdav; rw нужен для записи отчётов инкрементальной индексации
     depends_on:
       - qdrant
       - webdav
