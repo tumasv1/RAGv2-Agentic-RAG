@@ -190,26 +190,26 @@ def main(vault_path: str | None = None) -> str:
     # список HUB файлов для генерации
     hubs = [
         {
-            "path": base_path / "01. Private" / "00_HUB.md",
-            "folder": base_path / "01. Private",
+            "path": base_path / "Основное" / "01. Private" / "00_HUB.md",
+            "folder": base_path / "Основное" / "01. Private",
             "title": "👤 01. Private",
             "description": "Личные файлы и заметки",
         },
         {
-            "path": base_path / "02. Работа" / "00_HUB.md",
-            "folder": base_path / "02. Работа",
+            "path": base_path / "Основное" / "02. Работа" / "00_HUB.md",
+            "folder": base_path / "Основное" / "02. Работа",
             "title": "💼 02. Работа",
             "description": "Рабочие проекты и задачи",
         },
         {
-            "path": base_path / "03. База знаний" / "00_HUB.md",
-            "folder": base_path / "03. База знаний",
+            "path": base_path / "Основное" / "03. База знаний" / "00_HUB.md",
+            "folder": base_path / "Основное" / "03. База знаний",
             "title": "📚 03. База знаний",
             "description": "База знаний и справочные материалы",
         },
         {
-            "path": base_path / "05. Архив" / "00_HUB.md",
-            "folder": base_path / "05. Архив",
+            "path": base_path / "Основное" / "05. Архив" / "00_HUB.md",
+            "folder": base_path / "Основное" / "05. Архив",
             "title": "🗄️ 05. Архив",
             "description": "Архивные материалы",
         },
