@@ -6,61 +6,61 @@
 # reference_docs: файл, в котором ДОЛЖЕН быть найден термин
 
 - id: 1
-  term: "6S59VB"
-  result: "- **ФИО:** Михаил Тумасов\n- **Бронирование:** 6S59VB\n- **Номер билета:** 216 243"
+  term: "TK7X-DEMO"
+  result: "- **Номер брони:** TK7X-DEMO\n- **Статус:** подтверждено"
   reference_docs:
-    - "01. Private/Семья/Путешествия/🏂 Отпуск Шерегеш 2026.md"
+    - "01. Private/Семья/Путешествия/Поездка на Байкал 2026.md"
 
 - id: 2
-  term: "BL3BB"
-  result: "| 8B            | BL3BB         | Бластоциста | Крио 1 |"
+  term: "BX-CTRL-4411"
+  result: "| Конфигурация  | BX-CTRL-4411  | Стенд тестирования | Активен |"
   reference_docs:
-    - "01. Private/Семья/Родительство/Эмбриологический протокол ЭКО.md"
+    - "01. Private/Инфраструктура/Тестовые стенды.md"
 
 - id: 3
-  term: "Sage 1-Step"
-  result: "**Метод оплодотворения:** ЭКО (стандартное)\n**Среда культивирования:** Sage 1-Step"
+  term: "VaultSync-Pro"
+  result: "**Инструмент синхронизации:** VaultSync-Pro\n**Версия:** 2.4.1"
   reference_docs:
-    - "01. Private/Семья/Родительство/Эмбриологический протокол ЭКО.md"
+    - "01. Private/Инфраструктура/Настройки Obsidian.md"
 
 - id: 4
-  term: "Kitazato"
-  result: "| Витрификация   | Kitazato      | Сосуд 29, Канистра 2, Секция многогранная"
+  term: "Cryo-Mock-9"
+  result: "| Контейнер      | Cryo-Mock-9   | Лаборатория А, Секция 3"
   reference_docs:
-    - "01. Private/Семья/Родительство/Эмбриологический протокол ЭКО.md"
+    - "01. Private/Инфраструктура/Оборудование.md"
 
 - id: 5
-  term: "Z-11444916-0002"
-  result: "Оплачено (на Ozon)\n- Номер заказа Ozon: Z-11444916-0002\n- Поддержка Ozon: +7 495"
+  term: "ORD-20260312-007"
+  result: "Статус: оплачено\n- Номер заказа: ORD-20260312-007\n- Служба доставки: экспресс"
   reference_docs:
-    - "01. Private/Семья/Путешествия/Поездка в Москву в марте 2026 на концерт Flo Rida.md"
+    - "01. Private/Семья/Покупки/Заказы март 2026.md"
 
 - id: 6
-  term: "Hdts675dlko-s!2"
-  result: "NPM Acsess:\nuser: stas\npsw: Hdts675dlko-s!2\n\n## Telegram bot"
+  term: "Xk9mPqR7-demo"
+  result: "dev-стенд:\nuser: demo\ntoken: Xk9mPqR7-demo\n\n## Описание сервиса"
   reference_docs:
-    - "01. Private/Инфраструктура/🖥️ Домашний сервер.md"
+    - "01. Private/Инфраструктура/Домашний сервер.md"
 
 - id: 7
-  term: "88173257"
-  result: "## Енева\nНастройки Интернет\nДоговор:88173257\nIP-адрес:95.161.158.115"
+  term: "DOG-88401"
+  result: "## Провайдер Nord\nНастройки Интернет\nДоговор: DOG-88401\nIP-адрес: 192.0.2.10"
   reference_docs:
-    - "01. Private/Инфраструктура/🖥️ Домашний сервер.md"
+    - "01. Private/Инфраструктура/Домашний сервер.md"
 
 - id: 8
-  term: "31.169.124.174"
-  result: "## VPS Нидерланды 31.169.124.174\nhttps://my.hip.hosting/\nIPv4: 31.169.124.174"
+  term: "198.51.100.42"
+  result: "## VPS Европа 198.51.100.42\nhttps://my.hosting-demo.example/\nIPv4: 198.51.100.42"
   reference_docs:
     - "01. Private/Инфраструктура/VPS.md"
 
 - id: 9
-  term: "+995568556449"
-  result: "## esim Грузия\n+995568556449\n+995 568 556 449\nℹ️ Привязан к Claude"
+  term: "+70001234567"
+  result: "## SIM для роутера\n+70001234567\nℹ️ Только мобильный интернет"
   reference_docs:
-    - "01. Private/Инфраструктура/eSIM.md"
+    - "01. Private/Инфраструктура/SIM-карты.md"
 
 - id: 10
-  term: "2a03:afc0:9::1fda"
-  result: "IPv4: 31.169.124.174\nIPv6: 2a03:afc0:9::1fda\nLogin: root"
+  term: "2001:db8::1fda"
+  result: "IPv4: 198.51.100.42\nIPv6: 2001:db8::1fda\nLogin: deploy"
   reference_docs:
     - "01. Private/Инфраструктура/VPS.md"
