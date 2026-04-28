@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -32,16 +33,60 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
     Читает X-Forwarded-* заголовки от обратного прокси (nginx, etc.)
     и обновляет request.url, чтобы url_for() генерировал правильные URLs.
     """
+
     async def dispatch(self, request: Request, call_next):
         # Читаем заголовки
         if x_forwarded_proto := request.headers.get("x-forwarded-proto"):
             # Переписываем scheme в request, чтобы Starlette/FastAPI это видели
             request.scope["scheme"] = x_forwarded_proto
         if x_forwarded_host := request.headers.get("x-forwarded-host"):
-            request.scope["server"] = (x_forwarded_host, 443 if request.scope["scheme"] == "https" else 80)
+            request.scope["server"] = (
+                x_forwarded_host,
+                443 if request.scope["scheme"] == "https" else 80,
+            )
 
         response = await call_next(request)
         return response
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    from agent import sessions as agent_sessions
+    from core.config import get_config
+    from interfaces.web.scheduler import create_scheduler
+
+    cfg = get_config()
+    log.info("RAGv2 web запущен")
+    log.info("  Vault: %s", cfg.obsidian_vault)
+    log.info("  LLM:   %s", cfg.nano_gpt_model)
+    log.info("  Qdrant: %s (коллекция: %s)", cfg.qdrant.path, cfg.qdrant.collection_name)
+    log.info(
+        "  Persistence: %s (retention=%d дней)",
+        cfg.persistence.db_path,
+        cfg.persistence.retention_days,
+    )
+
+    agent_sessions.init_db()
+    try:
+        removed = agent_sessions.cleanup_old(cfg.persistence.retention_days)
+        if removed:
+            log.info("  Cleanup на старте: удалено %d сессий", removed)
+    except Exception:
+        log.exception("Cleanup на старте упал")
+
+    scheduler = create_scheduler()
+    scheduler.start()
+    job = scheduler.get_job("nightly_reindex")
+    if job and job.next_run_time:
+        log.info(
+            "  Планировщик: следующий запуск в %s",
+            job.next_run_time.strftime("%Y-%m-%d %H:%M %Z"),
+        )
+
+    yield
+
+    scheduler.shutdown(wait=False)
+    log.info("RAGv2 web остановлен, планировщик выключен")
 
 
 def create_app() -> FastAPI:
@@ -60,6 +105,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
         docs_url="/docs",
         redoc_url=None,
+        lifespan=_lifespan,
     )
 
     # ── Proxy middleware (для работы за nginx/reverse proxy с HTTPS) ──
@@ -98,32 +144,6 @@ def create_app() -> FastAPI:
     from interfaces.web.errors import register_error_handlers
 
     register_error_handlers(app)
-
-    # ── Startup log + инициализация persistence ──
-    @app.on_event("startup")
-    async def _startup() -> None:
-        from agent import sessions as agent_sessions
-        from core.config import get_config
-
-        cfg = get_config()
-        log.info("RAGv2 web запущен")
-        log.info("  Vault: %s", cfg.obsidian_vault)
-        log.info("  LLM:   %s", cfg.nano_gpt_model)
-        log.info("  Qdrant: %s (коллекция: %s)", cfg.qdrant.path, cfg.qdrant.collection_name)
-        log.info(
-            "  Persistence: %s (retention=%d дней)",
-            cfg.persistence.db_path,
-            cfg.persistence.retention_days,
-        )
-
-        # инициализируем таблицу sessions и чистим устаревшие
-        agent_sessions.init_db()
-        try:
-            removed = agent_sessions.cleanup_old(cfg.persistence.retention_days)
-            if removed:
-                log.info("  Cleanup на старте: удалено %d сессий", removed)
-        except Exception:
-            log.exception("Cleanup на старте упал")
 
     return app
 

@@ -26,6 +26,8 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
+    # Планировщик ночной индексации
+    "apscheduler>=3.10,<4.0",
 ]
 
 [project.optional-dependencies]
