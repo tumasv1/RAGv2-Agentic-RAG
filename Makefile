@@ -1,5 +1,5 @@
-PROD_HOST = 192.168.3.160
-PROD_USER = root
+PROD_HOST ?= 192.168.3.160
+PROD_USER ?= root
 PROD_DIR  = /opt/ragv2
 
 .PHONY: lint test check deploy logs status restart
