@@ -28,6 +28,10 @@ dependencies = [
     "pyyaml>=6.0",
     # Планировщик ночной индексации
     "apscheduler>=3.10,<4.0",
+    # MCP: наш встроенный сервер для работы с заметками + адаптер для агента
+    "mcp[cli]>=1.0",
+    "python-frontmatter>=1.1",
+    "langchain-mcp-adapters>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -41,7 +45,7 @@ requires = ["setuptools>=73.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["core*", "agent*", "retriever*", "eval*", "interfaces*", "scripts*"]
+include = ["core*", "agent*", "retriever*", "eval*", "interfaces*", "scripts*", "mcp_obsidian*"]
 
 [tool.ruff]
 line-length = 100

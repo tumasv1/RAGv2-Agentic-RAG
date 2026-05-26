@@ -57,3 +57,9 @@ persistence:
   retention_days: 60                 # сессии старше удаляются (2 месяца)
   cleanup_every_sec: 3600            # раз в час ленивый cleanup при GET /api/sessions
   title_max_words: 6                 # ограничение длины автогенерируемого названия
+
+# — Встроенный MCP-сервер для работы с заметками —
+mcp:
+  enabled: true                      # подмешивать MCP-тулзы в граф агента
+  excluded_tools: []                 # имена тулзов, которые отфильтровать после загрузки
+  init_timeout_sec: 15.0             # таймаут на поднятие subprocess MCP

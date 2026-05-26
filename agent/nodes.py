@@ -42,8 +42,17 @@ def agent_node(state: AgentState) -> dict:
 
 # --- tool_node: выполняет инструменты + инкрементирует счётчик ---
 
-# создаём ToolNode один раз (он stateless, можно переиспользовать)
-_tool_node = ToolNode(tools=get_tools(), handle_tool_errors=True)
+# Ленивый синглтон — потому что get_tools() поднимает MCP-сервер,
+# и делать это на import-time нельзя (вычислится до настройки логов
+# и до того, как окружение успеет инициализироваться).
+_tool_node: ToolNode | None = None
+
+
+def _get_tool_node() -> ToolNode:
+    global _tool_node
+    if _tool_node is None:
+        _tool_node = ToolNode(tools=get_tools(), handle_tool_errors=True)
+    return _tool_node
 
 
 def tool_node_with_counter(state: AgentState) -> dict:
@@ -54,7 +63,7 @@ def tool_node_with_counter(state: AgentState) -> dict:
     ошибка станет ToolMessage (не крэш графа). Агент увидит ошибку
     и сможет сообщить пользователю.
     """
-    result = _tool_node.invoke(state)
+    result = _get_tool_node().invoke(state)
     result["iteration_count"] = state["iteration_count"] + 1
     return result
 

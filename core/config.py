@@ -108,6 +108,14 @@ class PersistenceConfig(BaseModel):
     title_max_words: int = 6  # верхняя граница слов в автогенерируемом title
 
 
+class MCPConfig(BaseModel):
+    """Настройки встроенного MCP-сервера для работы с заметками."""
+
+    enabled: bool = True  # подмешивать MCP-тулзы в граф агента
+    excluded_tools: list[str] = []  # имена тулзов, которые отфильтруем после загрузки
+    init_timeout_sec: float = 15.0  # сколько ждём поднятия subprocess MCP
+
+
 class AppConfig(BaseModel):
     """
     Главная модель конфигурации.
@@ -136,6 +144,7 @@ class AppConfig(BaseModel):
     qdrant: QdrantConfig = QdrantConfig()
     eval: EvalConfig = EvalConfig()
     persistence: PersistenceConfig = PersistenceConfig()
+    mcp: MCPConfig = MCPConfig()
 
 
 # --- Определение корня проекта ---
