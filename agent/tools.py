@@ -11,6 +11,7 @@
     tools = get_tools()  # список для bind_tools() и ToolNode
 """
 
+import logging
 from datetime import datetime
 
 from langchain_core.tools import tool
@@ -18,6 +19,8 @@ from langchain_core.tools import tool
 from core.types import SearchResult
 from retriever.formatting import build_parent_prefix
 from retriever.search import search
+
+logger = logging.getLogger(__name__)
 
 
 def _format_chunk(i: int, r: SearchResult) -> str:
@@ -89,5 +92,19 @@ def create_hub_note() -> str:
 
 
 def get_tools() -> list:
-    """Возвращает список MVP-инструментов для bind_tools() и ToolNode."""
-    return [search_knowledge_base, get_current_date, create_hub_note]
+    """
+    Возвращает список инструментов для bind_tools() и ToolNode.
+
+    Базовые: search_knowledge_base, get_current_date, create_hub_note.
+    Плюс MCP-тулзы из встроенного mcp_obsidian-сервера (read/write/list
+    заметок) — подгружаются лениво. Если сервер не поднялся, остаётся
+    только базовая тройка.
+    """
+    base = [search_knowledge_base, get_current_date, create_hub_note]
+    try:
+        from agent.mcp_tools import load_mcp_tools_sync
+
+        base.extend(load_mcp_tools_sync())
+    except Exception as e:
+        logger.warning("MCP-тулзы не загружены: %s", e)
+    return base
