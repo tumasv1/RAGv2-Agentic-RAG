@@ -130,4 +130,5 @@ vault/
 ## Documentation
 
 - Architecture decisions go in `docs/knowledge base/adr/` as ADR markdown files (headers no higher than `##`)
-- ADR-0000 is the template. ADRs 0001–0012 exist.
+- ADR-0000 is the template. ADRs 0001–0013 exist.
+- **Architecture overview**: [`docs/knowledge base/adr/architecture-overview.md`](docs/knowledge%20base/adr/architecture-overview.md) — единая Mermaid-схема Context + Container. **Правило:** при добавлении/удалении канала пользователя, внутреннего компонента, внешнего API, контейнера, volume или шага деплоя — обновлять схему в том же PR. См. раздел «Как обновлять» в файле.
