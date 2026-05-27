@@ -11,16 +11,18 @@
 
 | Возможность            | Реализация                                                  |
 | ---------------------- | ----------------------------------------------------------- |
-| Агентная архитектура   | LangGraph ReAct, до 5 итераций, guardrail против петли      |
+| Агентная архитектура   | Async LangGraph ReAct, до 5 итераций, guardrail против петли |
+| MCP-интеграция         | Встроенный mcp-obsidian (stdio), 7 инструментов CRUD заметок |
+| Async-граф             | AsyncSqliteSaver + `ainvoke`, persistent MCP-session через AsyncExitStack |
 | Гибридный поиск        | Dense (E5-large multilingual) + BM25 + RRF fusion           |
 | Parent-Child чанкинг   | Поиск по малым chunks, LLM получает крупный контекст        |
 | Кросс-энкодер          | jinaai/jina-reranker-v2-base-multilingual (ONNX, CPU)       |
 | RAGAS evaluation       | 18 golden Q&A, 4 метрики + LLM-судья (шкала 0–3)            |
 | Веб-интерфейс + PWA    | FastAPI + Jinja2, устанавливается на телефон как приложение |
-| Персистентная история  | SQLite (LangGraph SqliteSaver), хранение 60 дней            |
+| Персистентная история  | SQLite (AsyncSqliteSaver), хранение 60 дней                 |
 | Контекстное обогащение | Метаданные (файл, тип, теги, дата) инжектируются в чанк     |
 | CI/CD                  | GitHub Actions (ruff + pytest) → make deploy → Docker       |
-| 12 ADR                 | Все архитектурные решения задокументированы                 |
+| 13 ADR                 | Все архитектурные решения задокументированы                 |
 
 ---
 
@@ -38,17 +40,28 @@
 └────────────────────────┬────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────┐
-│                LangGraph Agent (agent/)                 │
+│           Async LangGraph Agent (agent/)                │
 │                                                         │
 │  START → [agent] → [tools] → [agent] → [generate] → END │
 │                  ↑                   ↓                  │
 │           tool_calls           max 5 итераций           │
 │                                                         │
-│  Tools: search_knowledge_base | get_current_date |      │
-│         create_hub_note                                 │
-└────────┬────────────────────────────────────────────────┘
-         │ search()
-┌────────▼────────────────────────────────────────────────┐
+│  Built-in tools:                                        │
+│    search_knowledge_base | get_current_date |           │
+│    create_hub_note                                      │
+│                                                         │
+│  MCP-Obsidian tools (через langchain-mcp-adapters):     │
+│    list_vault | find_note | read_note |                 │
+│    create_note | update_note | append_to_note |         │
+│    get_templates                                        │
+└────┬──────────────────────────────────────┬─────────────┘
+     │ search()                             │ stdio (JSON-RPC)
+     │                          ┌───────────▼─────────────┐
+     │                          │  MCP Server (subprocess)│
+     │                          │  mcp_obsidian/server.py │
+     │                          │  → Obsidian Vault (FS)  │
+     │                          └─────────────────────────┘
+┌────▼────────────────────────────────────────────────────┐
 │            Retriever — гибридный поиск                  │
 │                                                         │
 │  ┌─────────┐                                            │
@@ -69,7 +82,7 @@
 
 ┌─────────────────────────────────────────────────────────┐
 │             SQLite  (data/agent.sqlite)                 │
-│       LangGraph checkpoints + метаданные сессий         │
+│   AsyncSqliteSaver (aiosqlite) + метаданные сессий      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -80,11 +93,32 @@
 
 ---
 
+## MCP-интеграция
+
+Агент модифицирует базу знаний через **Model Context Protocol**. MCP-тулзы выглядят для агента как обычные LangChain `BaseTool` — он не знает, что они исполняются во внешнем процессе.
+
+**7 MCP-инструментов для работы с Obsidian:**
+
+| Tool             | Описание                                                              |
+| ---------------- | --------------------------------------------------------------------- |
+| `list_vault`     | Дерево vault с настраиваемой глубиной                                 |
+| `find_note`      | Поиск файла по имени (case-insensitive, рекурсивно)                   |
+| `read_note`      | Чтение заметки целиком с разбором frontmatter                         |
+| `create_note`    | Создание из шаблона (`template_name`) с автозаполнением frontmatter   |
+| `update_note`    | Замена тела и/или merge frontmatter                                   |
+| `append_to_note` | Дописать контент после указанного заголовка                           |
+| `get_templates`  | Список шаблонов из `04. Шаблоны/` (рекурсивно) с превью и frontmatter |
+
+Решение задокументировано в [ADR-0013](docs/knowledge%20base/adr/0013-mcp-obsidian-integration.md): почему stdio, а не WebDAV-MCP; почему persistent session; trade-off с async-графом.
+
+---
+
 ## Tech Stack
 
 | Компонент | Технология |
 |---|---|
-| Агент | LangGraph 0.4+ (ReAct pattern) |
+| Агент | LangGraph 0.4+ (ReAct pattern, async via `ainvoke`) |
+| MCP | `langchain-mcp-adapters` 0.1+ + `mcp[cli]` 1.0+ (stdio transport) |
 | LLM | OpenRouter → gpt-4.1-mini (OpenAI-совместимый API) |
 | Embeddings | intfloat/multilingual-e5-large (CPU, 768-dim) |
 | Sparse | Qdrant/bm25 (FastEmbed, ONNX) |
@@ -92,7 +126,7 @@
 | Vector DB | Qdrant 1.17 (Docker) |
 | Веб | FastAPI 0.100+ + Uvicorn + Jinja2 |
 | Конфиг | Pydantic v2 + config.yaml + .env |
-| Persistence | SQLite (LangGraph SqliteSaver) |
+| Persistence | SQLite (LangGraph AsyncSqliteSaver + `aiosqlite`) |
 | Scheduler | APScheduler 3.x |
 | Eval | RAGAS 0.4+ |
 | CI/CD | GitHub Actions + pre-commit (ruff) + Makefile + Docker |
@@ -100,73 +134,15 @@
 
 ---
 
-## Быстрый старт
+## Скриншоты
 
-### Требования
+### Чат-интерфейс
 
-- Docker + Docker Compose
-- OpenRouter API-ключ (или любой OpenAI-совместимый провайдер)
-- Obsidian vault на локальном диске
+![Чат](docs/screenshots/chat.png)
 
-### 1. Клонировать и настроить
+### Debug-дашборд (трейс агента, retrieval, latency)
 
-```bash
-git clone https://github.com/tumasv1/RAGv2-Agentic-RAG.git
-cd RAGv2-Agentic-RAG
-cp .env.example .env
-```
-
-Отредактировать `.env`:
-
-```env
-NANO_GPT_API_KEY=sk-...          # OpenRouter или другой провайдер
-NANO_GPT_BASE_URL=https://openrouter.ai/api/v1
-NANO_GPT_MODEL=openai/gpt-4.1-mini
-OBSIDIAN_VAULT=/path/to/vault    # абсолютный путь к vault на хосте
-WEBDAV_PASSWORD=changeme
-```
-
-### 2. Запустить через Docker Compose
-
-```bash
-docker compose up -d
-```
-
-Запускаются 3 контейнера:
-- `qdrant` на порту 6333 — векторная БД (Qdrant)
-- `webdav` на порту 8081 — WebDAV для синхронизации vault через Obsidian Remotely Save
-- `app` на порту 8080 — FastAPI веб-приложение
-
-### 3. Первичная индексация
-
-```bash
-docker compose exec app python -m retriever.indexer
-```
-
-Индексация занимает несколько минут в зависимости от размера vault.
-
-### 4. Открыть интерфейс
-
-```
-http://localhost:8080
-```
-
-### Локальный запуск (без Docker)
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install ".[web]"
-
-# Qdrant отдельным контейнером
-docker run -d -p 6333:6333 -v qdrant_storage:/qdrant/storage qdrant/qdrant:v1.17.1
-
-# Задать переменные окружения
-export OBSIDIAN_VAULT=/path/to/vault
-# ... остальные из .env
-
-python -m retriever.indexer       # проиндексировать vault
-python -m interfaces.cli          # запустить веб-приложение
-```
+![Debug](docs/screenshots/debug.png)
 
 ---
 
@@ -189,6 +165,11 @@ ingest:
   parent_chunk_size: 2000       # parent-чанк (передаётся в LLM)
   parent_chunk_overlap: 200
   enrich_content: true          # метаданные инжектируются в текст чанка
+
+mcp:
+  enabled: true                 # подключать MCP-тулзы при старте агента
+  excluded_tools: []            # имена MCP-тулзов, которые скрыть от агента
+  init_timeout_sec: 15.0        # таймаут на старт stdio-subprocess
 ```
 
 ---
@@ -226,13 +207,17 @@ python -m eval.compare_splitters           # сравнение 5 стратег
 
 ```
 ragv2/
-├── agent/              # LangGraph агент
-│   ├── graph.py        # сборка графа, функция ask()
+├── agent/              # LangGraph агент (async)
+│   ├── graph.py        # сборка графа, ask() через ainvoke(), AsyncSqliteSaver
 │   ├── nodes.py        # ноды: agent, tools, generate
 │   ├── tools.py        # @tool: search_knowledge_base, get_current_date, create_hub_note
+│   ├── mcp_tools.py    # MultiServerMCPClient + persistent session (AsyncExitStack)
 │   ├── state.py        # AgentState (TypedDict + LangGraph annotations)
 │   ├── prompts.py      # system prompt, title prompt
 │   └── sessions.py     # метаданные сессий (SQLite)
+│
+├── mcp_obsidian/       # встроенный MCP-сервер (stdio)
+│   └── server.py       # 7 tools: list_vault, find_note, read/create/update/append_note, get_templates
 │
 ├── retriever/          # индексация и поиск
 │   ├── indexer.py      # инкрементальная индексация в Qdrant
@@ -286,6 +271,7 @@ ragv2/
 | 0010 | Parent-Child чанкинг |
 | 0011 | PWA-поддержка |
 | 0012 | CI/CD: 4-слойный pipeline |
+| 0013 | MCP-интеграция: stdio vs HTTP, persistent session, async-граф |
 
 Все ADR в [`docs/knowledge base/adr/`](docs/knowledge%20base/adr/).
 

@@ -410,6 +410,12 @@ function appendHistoryMsg(history, m) {
     });
     bubble.appendChild(ul);
   }
+  if (m.meta) {
+    const metaEl = document.createElement("div");
+    metaEl.className = "bubble-meta";
+    metaEl.textContent = m.meta;
+    bubble.appendChild(metaEl);
+  }
   wrapper.appendChild(bubble);
   history.appendChild(wrapper);
 }

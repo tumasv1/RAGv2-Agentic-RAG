@@ -146,6 +146,7 @@ class SessionMessage(BaseModel):
     role: Literal["user", "agent"]
     content: str
     sources: list[str] = Field(default_factory=list)
+    meta: str | None = None  # "итераций: N · чанков: N", None для user-сообщений
 
 
 class SessionMessagesResponse(BaseModel):

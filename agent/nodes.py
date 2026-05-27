@@ -55,15 +55,19 @@ def _get_tool_node() -> ToolNode:
     return _tool_node
 
 
-def tool_node_with_counter(state: AgentState) -> dict:
+async def tool_node_with_counter(state: AgentState) -> dict:
     """
     Выполняет инструменты и увеличивает счётчик итераций.
+
+    Async: MCP-инструменты (langchain-mcp-adapters) реализуют только _arun,
+    поэтому нужен ainvoke, а не invoke. LangGraph вызывает async-ноды
+    напрямую через граф.ainvoke().
 
     handle_tool_errors=True — если Qdrant упал или search сломался,
     ошибка станет ToolMessage (не крэш графа). Агент увидит ошибку
     и сможет сообщить пользователю.
     """
-    result = _get_tool_node().invoke(state)
+    result = await _get_tool_node().ainvoke(state)
     result["iteration_count"] = state["iteration_count"] + 1
     return result
 

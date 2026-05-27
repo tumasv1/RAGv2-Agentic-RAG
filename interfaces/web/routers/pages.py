@@ -44,7 +44,7 @@ async def index(request: Request, thread_id: str = Depends(get_or_create_thread_
     initial_messages: list[dict] = []
     if agent_sessions.get(thread_id) is not None:
         try:
-            initial_messages = load_messages_for_ui(thread_id)
+            initial_messages = await load_messages_for_ui(thread_id)
         except Exception:
             initial_messages = []
 
@@ -83,7 +83,7 @@ async def debug_page(request: Request, thread_id: str = Depends(get_or_create_th
     chain: list[dict] = []
     if session_meta is not None:
         try:
-            chain = load_chain_for_debug(thread_id)
+            chain = await load_chain_for_debug(thread_id)
         except Exception:
             chain = []
 
@@ -125,7 +125,7 @@ async def debug_run(
 
     t0 = time.time()
     try:
-        response, trace = ask_debug(question, thread_id=effective_tid)
+        response, trace = await ask_debug(question, thread_id=effective_tid)
     except Exception as e:
         # пользователь увидит отрендеренную страницу с баннером ошибки
         templates = get_templates()
