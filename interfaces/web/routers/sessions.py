@@ -68,7 +68,7 @@ async def get_session_messages(thread_id: str) -> SessionMessagesResponse:
     if meta is None:
         raise HTTPException(status_code=404, detail="session not found")
 
-    msgs = load_messages_for_ui(thread_id)
+    msgs = await load_messages_for_ui(thread_id)
     return SessionMessagesResponse(
         thread_id=thread_id,
         title=meta.title or _fallback_title(meta.first_question),

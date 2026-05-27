@@ -87,7 +87,7 @@ async def api_ask(
 
     t0 = time.time()
     try:
-        agent_resp = ask(body.question, thread_id=tid)
+        agent_resp = await ask(body.question, thread_id=tid)
     except Exception as e:
         raise LlmUnavailableError(f"Агент не смог обработать запрос: {e}") from e
     latency_ms = (time.time() - t0) * 1000
@@ -121,7 +121,7 @@ async def api_ask_debug(
 
     t0 = time.time()
     try:
-        agent_resp, trace = ask_debug(body.question, thread_id=tid)
+        agent_resp, trace = await ask_debug(body.question, thread_id=tid)
     except Exception as e:
         raise LlmUnavailableError(f"Агент не смог обработать запрос: {e}") from e
     latency_ms = (time.time() - t0) * 1000

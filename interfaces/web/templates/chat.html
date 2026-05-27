@@ -61,6 +61,9 @@
                   {% for s in m.sources %}<li><code>{{ s }}</code></li>{% endfor %}
                 </ul>
               {% endif %}
+              {% if m.meta %}
+                <div class="bubble-meta">{{ m.meta }}</div>
+              {% endif %}
             </div>
           </div>
         {% endfor %}

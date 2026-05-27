@@ -84,47 +84,74 @@ def _is_hub(name: str) -> bool:
 
 
 @mcp.tool()
-def list_vault(path: str = "") -> dict[str, Any]:
-    """List files and folders inside a vault directory (one level only).
+def list_vault(path: str = "", depth: int = 1) -> dict[str, Any]:
+    """List files and folders inside a vault directory.
 
     Use this to browse the vault structure — especially when the user asks to
     find a suitable folder for a new note, or to explore what's in a section.
-    Drill down by calling list_vault again with a subfolder path.
+
+    Set depth=2 to also see subdirectories of each folder in one call.
+    This is the recommended way to pick a folder for a new note — call
+    list_vault("Основное", depth=2) to get the full two-level structure at once.
 
     Paths in the result are vault-relative and can be passed directly to
     read_note, append_to_note, create_note, etc.
 
     Args:
-        path: vault-relative folder path (empty string = vault root)
+        path:  vault-relative folder path (empty string = vault root)
+        depth: 1 = one level only (default); 2 = also expand subdirectories
 
     Returns:
-        {"path": ..., "entries": [{"name", "path", "type": "dir"|"file", "size"}]}
+        depth=1: {"path": ..., "entries": [{"name", "path", "type", "size"}]}
+        depth=2: {"path": ..., "entries": [{"name", "path", "type", "size",
+                  "children": [...]}]}  — children present only for dirs
 
     Examples:
-        list_vault("")              → top-level folders/files
-        list_vault("01. Private")   → contents of Private folder
-        list_vault("01. Private/Articles") → drill deeper
+        list_vault("Основное", depth=2)     → all top-level folders + their subfolders
+        list_vault("01. Private")           → contents of Private folder (flat)
+        list_vault("01. Private/Articles")  → drill deeper
     """
+
+    def _ls_one(p: str) -> list[dict]:
+        try:
+            entries = vault().ls(p)
+        except (FileNotFoundError, NotADirectoryError, ValueError):
+            return []
+        out = []
+        for e in entries:
+            if _is_hidden(e.name):
+                continue
+            out.append(
+                {
+                    "name": e.name,
+                    "path": e.path,
+                    "type": "dir" if e.is_dir else "file",
+                    "size": e.size,
+                }
+            )
+        out.sort(key=lambda x: (x["type"] != "dir", x["name"].lower()))
+        return out
+
     try:
-        entries = vault().ls(path)
-    except FileNotFoundError:
-        return {"error": f"Folder not found: {path!r}", "path": path, "entries": []}
-    except (NotADirectoryError, ValueError) as e:
+        top = _ls_one(path)
+    except Exception as e:
         return {"error": str(e), "path": path, "entries": []}
-    out = []
-    for e in entries:
-        if _is_hidden(e.name):
-            continue
-        out.append(
-            {
-                "name": e.name,
-                "path": e.path,
-                "type": "dir" if e.is_dir else "file",
-                "size": e.size,
-            }
-        )
-    out.sort(key=lambda x: (x["type"] != "dir", x["name"].lower()))
-    return {"path": path, "entries": out}
+
+    if not top and path:
+        # Пробуем лёгкую диагностику — может папка не существует
+        try:
+            vault().ls(path)
+        except FileNotFoundError:
+            return {"error": f"Folder not found: {path!r}", "path": path, "entries": []}
+        except (NotADirectoryError, ValueError) as e:
+            return {"error": str(e), "path": path, "entries": []}
+
+    if depth >= 2:
+        for entry in top:
+            if entry["type"] == "dir":
+                entry["children"] = _ls_one(entry["path"])
+
+    return {"path": path, "entries": top}
 
 
 @mcp.tool()
@@ -206,43 +233,78 @@ def read_note(path: str, max_lines: int | None = None) -> dict[str, Any]:
 def create_note(
     path: str,
     content: str,
-    frontmatter_data: dict[str, Any] | None = None,
+    template_name: str,
+    note_type: str,
     overwrite: bool = False,
 ) -> dict[str, Any]:
-    """Create a new markdown note.
+    """Create a new markdown note from a template.
 
-    ALWAYS follow this workflow before creating:
-      1. get_templates()  — pick the template that best matches the note's purpose.
-         Every new note must use a template.
-      2. list_vault(...)  — if the target folder is unknown, explore the structure
-         and pick the most appropriate folder.
-      3. Prepare frontmatter_data from the chosen template:
-         - "type": template shows all possible values — select ONE that best fits.
-           Example: `{"type": ["project"]}` not `{"type": ["project", "other"]}`.
-         - "created": today's date as "DD.MM.YY" (e.g. "26.05.26").
-           Skip "created" for medical templates (04_medical_analysis, 05_medical_visit).
-         - All other template fields: carry over as-is.
+    Workflow:
+      1. get_templates()  — see available templates and their type options.
+      2. list_vault(...)  — find the right folder if unknown.
+      3. create_note(path, content, template_name=..., note_type=...) — create it.
+         The "created" date is filled automatically from the system clock.
+         No need to call get_current_date() separately.
+
+    The server reads the chosen template and builds the YAML frontmatter for you.
+    You only need to provide template_name and one note_type value.
 
     Args:
-        path: vault-relative path, e.g. "01. Private/Articles/foo.md"
-        content: markdown body (without frontmatter delimiters)
-        frontmatter_data: frontmatter dict built from the chosen template
-        overwrite: if False (default), fails when the file already exists
+        path: vault-relative path, e.g. "01. Private/❤️ Здоровье/note.md"
+        content: markdown body text (without YAML delimiters)
+        template_name: exact name from get_templates() result,
+                       e.g. "00_standart", "01_daily", "03_сеанс с психологом"
+        note_type: ONE value from the template's type list,
+                   e.g. "other", "project", "meeting", "daily"
+        overwrite: if True, overwrite an existing file (default False)
+
+    Returns:
+        {"path": ..., "bytes": ..., "frontmatter": {...}}  on success
+        {"error": "..."}  on failure
     """
     if not path.endswith(".md"):
         path = path + ".md"
-    if frontmatter_data:
-        post = frontmatter.Post(content, **frontmatter_data)
-        raw = frontmatter.dumps(post)
-    else:
-        raw = content
+
+    # Читаем шаблон и строим frontmatter на сервере.
+    # Агент предоставляет только template_name и note_type — всё остальное заполняем сами.
+    templates_result = get_templates()
+    template = next(
+        (t for t in templates_result.get("templates", []) if t["name"] == template_name),
+        None,
+    )
+    if template is None:
+        available = [t["name"] for t in templates_result.get("templates", [])]
+        return {
+            "error": (
+                f"Template {template_name!r} not found. "
+                f"Available templates: {available}. "
+                "Call get_templates() to see the full list."
+            )
+        }
+
+    # Берём все поля из шаблона; "created" заменяем на сегодня (DD.MM.YY),
+    # "type" заменяем на выбранное значение.
+    from datetime import date
+
+    today = date.today()
+    created = f"{today.day:02d}.{today.month:02d}.{str(today.year)[2:]}"
+
+    fm: dict[str, Any] = dict(template["frontmatter"])
+    fm["type"] = note_type
+    # Медицинские шаблоны не имеют поля "created" → не добавляем.
+    no_created = {"04_medical_analysis", "05_medical_visit"}
+    if template_name not in no_created:
+        fm["created"] = created
+
+    post = frontmatter.Post(content, **fm)
+    raw = frontmatter.dumps(post)
     try:
         vault().write_text(path, raw, overwrite=overwrite)
     except FileExistsError:
-        return {"error": f"File already exists: {path!r}. Use overwrite=True or update_note."}
+        return {"error": f"File already exists: {path!r}. Use overwrite=True to replace."}
     except ValueError as e:
         return {"error": str(e)}
-    return {"path": path, "bytes": len(raw.encode("utf-8"))}
+    return {"path": path, "bytes": len(raw.encode("utf-8")), "frontmatter": fm}
 
 
 @mcp.tool()
@@ -371,10 +433,26 @@ def get_templates() -> dict[str, Any]:
     Returns:
         {"folder", "templates": [{"name", "path", "frontmatter", "preview"}]}
     """
+    # Пробуем прямой путь; если нет — ищем папку по всему vault'у рекурсивно.
+    # Это нужно когда TEMPLATES_DIR = "04. Шаблоны", а реально она лежит
+    # в "Основное/04. Шаблоны" (вложена в другую папку).
+    effective_dir = TEMPLATES_DIR
     try:
         entries = vault().ls(TEMPLATES_DIR)
     except (FileNotFoundError, NotADirectoryError, ValueError):
-        return {"folder": TEMPLATES_DIR, "templates": []}
+        # Ищем папку с таким именем где угодно в vault
+        needle = TEMPLATES_DIR.rstrip("/").split("/")[-1]
+        found = next(
+            (e.path for e in vault().walk() if e.is_dir and e.name == needle),
+            None,
+        )
+        if found is None:
+            return {"folder": TEMPLATES_DIR, "templates": []}
+        effective_dir = found
+        try:
+            entries = vault().ls(effective_dir)
+        except Exception:
+            return {"folder": TEMPLATES_DIR, "templates": []}
     templates = []
     for e in entries:
         if e.is_dir or not e.name.lower().endswith(".md") or _is_hidden(e.name):
@@ -392,7 +470,7 @@ def get_templates() -> dict[str, Any]:
             )
         except Exception as exc:
             log.warning("template read failed %s: %s", e.path, exc)
-    return {"folder": TEMPLATES_DIR, "templates": templates}
+    return {"folder": effective_dir, "templates": templates}
 
 
 # подавим неиспользуемый импорт _normalize (нужен только для тестов извне)
