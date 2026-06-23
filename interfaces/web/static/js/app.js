@@ -130,56 +130,19 @@ function initChat() {
     sendBtn.addEventListener("mousedown", e => e.preventDefault());
   }
 
-  // Детекция устаревшей страницы из SW-кэша.
-  //
-  // Если thread_id в HTML-странице не совпадает с тем, что сервер выдаёт по cookie
-  // (/api/sessions/me), значит страница закеширована старым SW с чужим thread_id.
-  // В этом случае снимаем SW и перезагружаемся — получаем свежий HTML.
-  //
-  // Если thread_id совпадает, но история пустая — подгружаем сообщения через AJAX
-  // (страховка на случай гонки инициализации графа на сервере).
-  //
-  // sessionStorage-флаг предотвращает бесконечный цикл перезагрузок.
-  if (history && threadIdEl) {
-    const pageTid = threadIdEl.textContent.trim();
-    if (pageTid) {
-      (async () => {
-        try {
-          const me = await getJSON("/api/sessions/me");
-          const serverTid = me.thread_id;
-
-          if (serverTid && serverTid !== pageTid) {
-            // Страница из SW-кэша с устаревшим thread_id — сбрасываем SW и рестарт
-            if (!sessionStorage.getItem("sw-stale-reload")) {
-              sessionStorage.setItem("sw-stale-reload", "1");
-              if ("serviceWorker" in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                await Promise.all(regs.map(r => r.unregister()));
-              }
-              window.location.reload();
-              return;
-            }
-          }
-
-          // thread_id совпадает (или нет сессии на сервере) — снимаем флаг
-          sessionStorage.removeItem("sw-stale-reload");
-
-          // Если история пустая — подгружаем через AJAX (SSR мог вернуть [])
-          if (history.children.length === 0) {
-            const tid = serverTid || pageTid;
-            try {
-              const data = await getJSON(`/api/sessions/${encodeURIComponent(tid)}/messages`);
-              if (data.messages && data.messages.length && history.children.length === 0) {
-                if (threadIdEl) threadIdEl.textContent = tid;
-                data.messages.forEach(m => appendHistoryMsg(history, m));
-                requestAnimationFrame(() => {
-                  history.scrollTo({ top: history.scrollHeight });
-                });
-              }
-            } catch (_) { /* новый чат — ок */ }
-          }
-        } catch (_) { /* нет сети или ошибка API — ок */ }
-      })();
+  // Если SSR не загрузил историю (история пустая), но сессия существует —
+  // подгружаем через AJAX. Страховка на случай гонки инициализации на сервере.
+  if (history && history.children.length === 0 && threadIdEl) {
+    const tid = threadIdEl.textContent.trim();
+    if (tid) {
+      getJSON(`/api/sessions/${encodeURIComponent(tid)}/messages`).then(data => {
+        if (data.messages && data.messages.length && history.children.length === 0) {
+          data.messages.forEach(m => appendHistoryMsg(history, m));
+          requestAnimationFrame(() => {
+            history.scrollTo({ top: history.scrollHeight });
+          });
+        }
+      }).catch(() => {/* нет сессии — ок, это новый чат */});
     }
   }
 

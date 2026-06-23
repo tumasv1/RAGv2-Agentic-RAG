@@ -54,18 +54,6 @@ def _to_summary(meta: agent_sessions.SessionMeta) -> SessionSummary:
     )
 
 
-@router.get("/me")
-async def get_my_session(thread_id: str = Depends(get_or_create_thread_id)) -> dict:
-    """
-    Возвращает текущий thread_id по cookie.
-
-    Используется клиентом для обнаружения устаревшей SW-кешированной страницы:
-    если thread_id в HTML-странице не совпадает с ответом этого эндпоинта —
-    страница из старого кэша, нужна перезагрузка.
-    """
-    return {"thread_id": thread_id}
-
-
 @router.get("", response_model=SessionListResponse)
 async def list_sessions() -> SessionListResponse:
     """Плоский список сессий (до 200), сортировка по updated_at DESC."""
