@@ -130,6 +130,22 @@ function initChat() {
     sendBtn.addEventListener("mousedown", e => e.preventDefault());
   }
 
+  // Если SSR не загрузил историю (история пустая), но сессия существует —
+  // подгружаем через AJAX. Страховка на случай гонки инициализации на сервере.
+  if (history && history.children.length === 0 && threadIdEl) {
+    const tid = threadIdEl.textContent.trim();
+    if (tid) {
+      getJSON(`/api/sessions/${encodeURIComponent(tid)}/messages`).then(data => {
+        if (data.messages && data.messages.length && history.children.length === 0) {
+          data.messages.forEach(m => appendHistoryMsg(history, m));
+          requestAnimationFrame(() => {
+            history.scrollTo({ top: history.scrollHeight });
+          });
+        }
+      }).catch(() => {/* нет сессии — ок, это новый чат */});
+    }
+  }
+
   // Enter → отправить, Shift+Enter → перенос строки
   qTa.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && !ev.shiftKey) {

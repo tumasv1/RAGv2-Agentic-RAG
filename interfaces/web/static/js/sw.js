@@ -1,8 +1,8 @@
-// Service Worker для PWA — кэшируем статику, пропускаем API
+// Service Worker для PWA — кэшируем только статику, HTML-страницы всегда с сервера
 
-const CACHE = 'ragv2-v1';
+// Увеличь версию при изменении списка статики чтобы сбросить старый кэш
+const CACHE = 'ragv2-v2';
 const PRECACHE = [
-  '/',
   '/static/css/app.css',
   '/static/css/theme-geo.css',
   '/static/css/theme-minimal.css',
@@ -12,7 +12,7 @@ const PRECACHE = [
   '/static/icons/icon-512.png',
 ];
 
-// При установке — закачиваем статику в кэш
+// При установке — закачиваем статику в кэш (без HTML-страниц)
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE).then(c => c.addAll(PRECACHE))
@@ -46,12 +46,20 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Статика и страницы: кэш → сеть (cache-first)
+  // HTML-навигация (Accept: text/html): сеть первая, при офлайне — кэш
+  // Никогда не кэшируем HTML — иначе SSR с историей чата будет устаревшим
+  if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Статика (CSS, JS, картинки): кэш → сеть
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
       return fetch(e.request).then(response => {
-        // кэшируем только успешные GET-ответы
         if (e.request.method === 'GET' && response.status === 200) {
           caches.open(CACHE).then(c => c.put(e.request, response.clone()));
         }

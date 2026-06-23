@@ -30,12 +30,8 @@ async def index(request: Request, thread_id: str = Depends(get_or_create_thread_
     - sessions: список сессий для SSR sidebar-а.
     - initial_messages: история активной сессии (если есть в БД).
     """
-    from agent import ensure_graph, load_messages_for_ui
+    from agent import load_messages_for_ui
     from agent import sessions as agent_sessions
-
-    # прогреваем граф, чтобы AsyncSqliteSaver-соединение было открыто
-    # до вызова load_messages_for_ui (иначе — тихий [] и пустой экран)
-    await ensure_graph()
 
     sessions_meta = agent_sessions.list_recent(limit=200)
     sessions_view = [
