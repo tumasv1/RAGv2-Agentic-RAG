@@ -68,9 +68,19 @@ flowchart TB
         end
     end
 
+    %% — LLM-шлюз (отдельный LXC) —
+    subgraph GatewayLXC["🔀 LLM-шлюз · LXC 192.168.3.203"]
+        LiteLLM["litellm proxy<br/>:4000 · OpenAI-совместимый<br/>LB · fallback · spend"]
+        GatewayPG[("postgres<br/>ключи · бюджеты · SpendLogs")]
+        GatewayRedis[("redis<br/>LB счётчики · rpm/tpm")]
+        LiteLLM --- GatewayPG
+        LiteLLM --- GatewayRedis
+    end
+
     %% — Внешние API —
     subgraph Ext["☁️ Внешние API"]
-        NanoGPT["nanogpt / OpenRouter<br/>OpenAI‑совместимый"]
+        OpenRouter["OpenRouter<br/>openai/gpt-4.1-mini"]
+        NanoGPT["nano-gpt<br/>openai/gpt-4.1-mini"]
         HF["HuggingFace Hub"]
     end
 
@@ -96,9 +106,13 @@ flowchart TB
     ConfigF -.-> Core
     Core --> Agent
     Core --> Retriever
-    Core -->|"OpenAI API (HTTPS)"| NanoGPT
+    Core -->|"OpenAI API · HTTPS<br/>GATEWAY_API_KEY"| LiteLLM
+    Eval -->|"Judge LLM · HTTPS"| LiteLLM
     Retriever -.->|"Загрузка моделей"| HF
-    Eval -->|"Judge LLM (HTTPS)"| NanoGPT
+
+    %% — Шлюз → провайдеры —
+    LiteLLM -->|"LB / fallback"| OpenRouter
+    LiteLLM -->|"LB / fallback"| NanoGPT
 
     %% — Связи app ↔ внутренние сервисы —
     Retriever -->|REST| Qdrant
@@ -112,6 +126,7 @@ flowchart TB
     classDef infra fill:#e2e8f0,stroke:#475569,color:#000
     classDef storage fill:#f3e8ff,stroke:#7e22ce,color:#000
     classDef external fill:#fee2e2,stroke:#b91c1c,color:#000
+    classDef gateway fill:#fff7ed,stroke:#c2410c,color:#000
     classDef legend fill:#ffffff,stroke:#94a3b8,color:#000
 
     class Browser,ObsidianMobile,ObsidianDesktop user
@@ -119,7 +134,8 @@ flowchart TB
     class CLI,Web,Agent,Retriever,Eval,Core,MCP,ConfigF runtime
     class Qdrant,WebDAV,Server,App,Services infra
     class SQLite,QdrantVol,VaultVol,HFCache,Storage storage
-    class NanoGPT,HF external
+    class OpenRouter,NanoGPT,HF external
+    class LiteLLM,GatewayPG,GatewayRedis,GatewayLXC gateway
 
     %% — Легенда —
     subgraph Legend["🗂 Легенда"]
@@ -129,6 +145,7 @@ flowchart TB
         L4["🪶 Инфраструктура"]
         L5["🟪 Хранилища"]
         L6["🟥 Внешние API"]
+        L7["🟧 LLM-шлюз"]
     end
     class Legend legend
 ```
@@ -147,7 +164,7 @@ flowchart TB
 - **MCP — subprocess, не HTTP**: `mcp_obsidian/server.py` запускается агентом как дочерний процесс через stdio (FastMCP). Сессия MCP должна быть создана в том же event-loop, в котором используется — иначе кросс-loop deadlock с uvicorn.
 - **Один shared volume `obsidian_vault`** монтируется и в `app` (как `/vault`, rw — нужен retriever'у и MCP), и в `webdav` — поэтому правки с телефона через Remotely Save сразу видны индексатору и агенту.
 - **Qdrant в Docker-режиме** (`http://qdrant:6333`), а не embedded. Embedded остался как fallback (надо вернуть `path` в `config.yaml`). Данные в volume `./qdrant_data`.
-- **LLM только через nanogpt/OpenRouter**: ключ в `.env` (`NANO_GPT_API_KEY`), модель `openai/gpt-4.1-mini`. Локального LLM нет — CPU-сервер не тянет.
+- **LLM через общий LLM-шлюз (LiteLLM Proxy)**: все LLM-запросы из `app` идут на LXC `192.168.3.203:4000` (OpenAI-совместимый API). Шлюз маршрутизирует к OpenRouter и nano-gpt с балансировкой (`usage-based-routing-v2` через Redis) и автоматическим fallback. `app` хранит только `GATEWAY_API_KEY` (виртуальный ключ); реальные ключи провайдеров живут только на LXC шлюза. Локального LLM нет — CPU-сервер не тянет.
 - **HuggingFace Hub дёргается только при первом запуске** (скачивание E5-large и jina-reranker в volume-кеш). Дальше — оффлайн. BM25-модель ищется в кеше через `_find_bm25_model_path()` чтобы обойти HF rate-limit.
 - **Persistence — единая SQLite**: и LangGraph-чекпоинты (через `AsyncSqliteSaver` на `aiosqlite`), и метаданные сессий (через голый `sqlite3` в `agent/sessions.py`) живут в одном файле `data/agent.sqlite`. Cleanup ленивый, раз в час при `GET /api/sessions`.
 - **Деплой — pull-модель**: `make deploy` ходит по SSH на `192.168.3.160`, делает `git pull` + `docker compose up -d --build`. CI/CD сборки на GitHub нет.
