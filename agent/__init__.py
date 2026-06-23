@@ -15,6 +15,7 @@ from agent import sessions
 from agent.graph import (
     ask,
     ask_debug,
+    ensure_graph,
     generate_title,
     get_graph,
     get_mermaid,
@@ -25,6 +26,7 @@ from agent.graph import (
 __all__ = [
     "ask",
     "ask_debug",
+    "ensure_graph",
     "generate_title",
     "get_graph",
     "get_mermaid",

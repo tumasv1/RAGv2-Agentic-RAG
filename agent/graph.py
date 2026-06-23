@@ -161,6 +161,11 @@ async def _ensure_graph():
     return _graph
 
 
+async def ensure_graph():
+    """Публичный alias для _ensure_graph() — прогрев графа без вызова ask()."""
+    return await _ensure_graph()
+
+
 def get_graph():
     """
     Возвращает граф-синглтон (синхронная версия).

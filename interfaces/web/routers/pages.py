@@ -9,9 +9,13 @@ HTML-страницы: /, /debug, /chunks, /admin.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Form, Request
 
 from interfaces.web.deps import get_or_create_thread_id, get_templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -26,8 +30,12 @@ async def index(request: Request, thread_id: str = Depends(get_or_create_thread_
     - sessions: список сессий для SSR sidebar-а.
     - initial_messages: история активной сессии (если есть в БД).
     """
-    from agent import load_messages_for_ui
+    from agent import ensure_graph, load_messages_for_ui
     from agent import sessions as agent_sessions
+
+    # прогреваем граф, чтобы AsyncSqliteSaver-соединение было открыто
+    # до вызова load_messages_for_ui (иначе — тихий [] и пустой экран)
+    await ensure_graph()
 
     sessions_meta = agent_sessions.list_recent(limit=200)
     sessions_view = [
@@ -46,6 +54,7 @@ async def index(request: Request, thread_id: str = Depends(get_or_create_thread_
         try:
             initial_messages = await load_messages_for_ui(thread_id)
         except Exception:
+            logger.exception("load_messages_for_ui упал для thread_id=%s", thread_id)
             initial_messages = []
 
     templates = get_templates()
