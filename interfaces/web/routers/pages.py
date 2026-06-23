@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, Response
 
-from interfaces.web.deps import get_or_create_thread_id, get_templates
+from interfaces.web.deps import get_or_create_thread_id, get_templates, reset_thread_id
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +21,18 @@ router = APIRouter()
 
 
 @router.get("/")
-async def index(request: Request, thread_id: str = Depends(get_or_create_thread_id)):
+async def index(request: Request, response: Response):
     """
     Главная страница: чат с агентом.
 
-    В шаблон передаём:
-    - thread_id: активный thread_id (из cookie).
-    - sessions: список сессий для SSR sidebar-а.
-    - initial_messages: история активной сессии (если есть в БД).
+    Каждое открытие страницы (новая вкладка / обновление) начинает новую сессию.
+    Старые диалоги доступны через sidebar — JS подгружает их из /api/sessions.
     """
-    from agent import load_messages_for_ui
     from agent import sessions as agent_sessions
+
+    # Всегда создаём новый thread_id — пользователь всегда видит чистый чат.
+    # Предыдущие сессии остаются в sidebar и доступны для продолжения.
+    thread_id = reset_thread_id(response)
 
     sessions_meta = agent_sessions.list_recent(limit=200)
     sessions_view = [
@@ -45,14 +46,6 @@ async def index(request: Request, thread_id: str = Depends(get_or_create_thread_
         for s in sessions_meta
     ]
 
-    initial_messages: list[dict] = []
-    if agent_sessions.get(thread_id) is not None:
-        try:
-            initial_messages = await load_messages_for_ui(thread_id)
-        except Exception:
-            logger.exception("load_messages_for_ui упал для thread_id=%s", thread_id)
-            initial_messages = []
-
     templates = get_templates()
     return templates.TemplateResponse(
         request,
@@ -60,7 +53,7 @@ async def index(request: Request, thread_id: str = Depends(get_or_create_thread_
         {
             "thread_id": thread_id,
             "sessions": sessions_view,
-            "initial_messages": initial_messages,
+            "initial_messages": [],
         },
     )
 
