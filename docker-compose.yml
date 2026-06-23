@@ -27,8 +27,9 @@ services:
       - "8080:8000"
     env_file: .env
     environment:
-      # Переопределяем значения из config.yaml — внутри docker-compose qdrant доступен по имени сервиса
+      # Переопределяем значения из config.yaml — внутри docker-compose сервисы видны по именам
       QDRANT_URL: http://qdrant:6333
+      GATEWAY_BASE_URL: ${GATEWAY_BASE_URL}   # приложение ходит к LLM через шлюз
       OBSIDIAN_VAULT: /vault
     volumes:
       - ragv2_data:/app/data

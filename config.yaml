@@ -4,6 +4,12 @@ llm:
   max_tokens: 2000
   request_timeout: 60          # таймаут для LangChain ChatOpenAI (секунды)
 
+# — LLM-шлюз (LiteLLM Proxy) —
+gateway:
+  enabled: true                       # true = ходим через шлюз с fallback; false = напрямую к primary
+  base_url: "http://192.168.3.203:4000/v1"  # в docker переопределяется env-переменной GATEWAY_BASE_URL
+  model: "gpt-4.1-mini"              # имя модели из каталога шлюза
+
 # — Настройки поиска —
 search:
   max_chunks: 15                            # жёсткий лимит чанков для LLM

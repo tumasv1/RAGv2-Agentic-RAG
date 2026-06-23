@@ -1,5 +1,8 @@
 """
-LLM-клиент для nanogpt (OpenAI-совместимый API).
+LLM-клиент (OpenAI-совместимый API).
+
+По умолчанию ходит через LLM-шлюз LiteLLM Proxy, который сам делает fallback
+с основного провайдера на запасной. См. core/config.py::GatewayConfig.
 
 Один синглтон ChatOpenAI покрывает все сценарии:
 - LangGraph: llm.bind_tools(tools) для ReAct-агента
@@ -27,18 +30,32 @@ _llm: ChatOpenAI | None = None
 
 def get_llm() -> ChatOpenAI:
     """
-    Возвращает синглтон ChatOpenAI, настроенный для nanogpt.
+    Возвращает синглтон ChatOpenAI.
 
-    Модель, base_url, api_key, температура, таймаут — всё из конфига.
+    Куда смотрит клиент — зависит от gateway.enabled:
+    - True  → на LiteLLM Proxy (виртуальная модель + fallback внутри шлюза).
+    - False → напрямую на primary-провайдера (аварийный откат, если шлюз недоступен).
+
+    Температура, лимит токенов, таймаут — общие, из секции llm.
     Создаётся один раз, потом переиспользуется.
     """
     global _llm
     if _llm is None:
         cfg = get_config()
+        if cfg.gateway.enabled:
+            # обращаемся к шлюзу: модель — виртуальное имя, ключ — gateway_api_key
+            model = cfg.gateway.model
+            api_key = cfg.gateway_api_key
+            base_url = cfg.gateway.base_url
+        else:
+            # откат: ходим к основному провайдеру напрямую
+            model = cfg.llm_primary_model
+            api_key = cfg.llm_primary_api_key
+            base_url = cfg.llm_primary_base_url
         _llm = ChatOpenAI(
-            model=cfg.nano_gpt_model,
-            api_key=cfg.nano_gpt_api_key,
-            base_url=cfg.nano_gpt_base_url,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
             temperature=cfg.llm.temperature,
             max_tokens=cfg.llm.max_tokens,
             timeout=cfg.llm.request_timeout,
@@ -49,12 +66,13 @@ def get_llm() -> ChatOpenAI:
 # --- CLI: python -m core.llm_client ---
 
 if __name__ == "__main__":
-    print("Проверяю связь с nanogpt...")
+    cfg = get_config()
+    target = f"шлюз {cfg.gateway.base_url}" if cfg.gateway.enabled else cfg.llm_primary_base_url
+    print(f"Проверяю связь: {target} ...")
 
     try:
         llm = get_llm()
-        # простой тестовый запрос
         response = llm.invoke("Ответь одним словом: 2+2=")
-        print(f"Связь с nanogpt OK. Ответ: {response.content}")
+        print(f"OK. Ответ: {response.content}")
     except Exception as e:
-        print(f"Ошибка подключения к nanogpt: {e}")
+        print(f"Ошибка подключения: {e}")

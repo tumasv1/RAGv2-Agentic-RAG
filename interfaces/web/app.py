@@ -58,7 +58,11 @@ async def _lifespan(app: FastAPI):
     cfg = get_config()
     log.info("RAGv2 web запущен")
     log.info("  Vault: %s", cfg.obsidian_vault)
-    log.info("  LLM:   %s", cfg.nano_gpt_model)
+    log.info(
+        "  LLM:   %s (шлюз: %s)",
+        cfg.gateway.model if cfg.gateway.enabled else cfg.llm_primary_model,
+        "вкл" if cfg.gateway.enabled else "выкл (напрямую)",
+    )
     log.info("  Qdrant: %s (коллекция: %s)", cfg.qdrant.path, cfg.qdrant.collection_name)
     log.info(
         "  Persistence: %s (retention=%d дней)",

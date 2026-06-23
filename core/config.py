@@ -9,7 +9,7 @@
 Использование:
     from core.config import get_config
     cfg = get_config()
-    print(cfg.nano_gpt_model)         # из .env
+    print(cfg.gateway.model)          # из config.yaml
     print(cfg.search.max_chunks)      # из config.yaml
 """
 
@@ -116,6 +116,25 @@ class MCPConfig(BaseModel):
     init_timeout_sec: float = 15.0  # сколько ждём поднятия subprocess MCP
 
 
+class GatewayConfig(BaseModel):
+    """
+    Настройки LLM-шлюза (LiteLLM Proxy).
+
+    Шлюз — единая точка входа ко всем LLM. Приложение шлёт запрос на «виртуальное»
+    имя модели (model), а LiteLLM сам решает, к какому провайдеру обратиться и
+    что делать при сбое (fallback на запасную модель).
+
+    Если enabled=False — приложение ходит к провайдеру напрямую (llm_primary_*),
+    минуя шлюз. Это аварийный откат, если контейнер LiteLLM недоступен.
+    """
+
+    enabled: bool = True
+    base_url: str = (
+        "http://localhost:4000/v1"  # в docker переопределяется на http://litellm:4000/v1
+    )
+    model: str = "agent-main"  # виртуальное имя модели из deploy/litellm/config.yaml
+
+
 class AppConfig(BaseModel):
     """
     Главная модель конфигурации.
@@ -124,10 +143,20 @@ class AppConfig(BaseModel):
     Вложенные модели — из config.yaml (параметры).
     """
 
-    # из .env — секреты и пути
-    nano_gpt_api_key: str
-    nano_gpt_base_url: str
-    nano_gpt_model: str
+    # --- LLM-провайдеры (из .env) ---
+    # primary — основной провайдер (сейчас OpenRouter). Используется LiteLLM как
+    # главный deployment, а также напрямую приложением, если gateway.enabled=False.
+    llm_primary_api_key: str = ""
+    llm_primary_base_url: str = ""
+    llm_primary_model: str = ""
+    # fallback — запасной провайдер (nano-gpt). Используется LiteLLM, когда primary не отвечает.
+    llm_fallback_api_key: str = ""
+    llm_fallback_base_url: str = ""
+    llm_fallback_model: str = ""
+    # ключ для обращения к самому шлюзу LiteLLM (master или virtual key)
+    gateway_api_key: str = ""
+
+    # прочие секреты и пути
     obsidian_vault: str
     telegram_bot_token: str = ""
 
@@ -145,6 +174,7 @@ class AppConfig(BaseModel):
     eval: EvalConfig = EvalConfig()
     persistence: PersistenceConfig = PersistenceConfig()
     mcp: MCPConfig = MCPConfig()
+    gateway: GatewayConfig = GatewayConfig()
 
 
 # --- Определение корня проекта ---
@@ -197,9 +227,14 @@ def load_config(
             yaml_data = yaml.safe_load(f) or {}
 
     # 3. добавляем секреты из .env
-    yaml_data["nano_gpt_api_key"] = os.environ.get("NANO_GPT_API_KEY", "")
-    yaml_data["nano_gpt_base_url"] = os.environ.get("NANO_GPT_BASE_URL", "")
-    yaml_data["nano_gpt_model"] = os.environ.get("NANO_GPT_MODEL", "")
+    # LLM-провайдеры: primary (основной) + fallback (запасной)
+    yaml_data["llm_primary_api_key"] = os.environ.get("LLM_PRIMARY_API_KEY", "")
+    yaml_data["llm_primary_base_url"] = os.environ.get("LLM_PRIMARY_BASE_URL", "")
+    yaml_data["llm_primary_model"] = os.environ.get("LLM_PRIMARY_MODEL", "")
+    yaml_data["llm_fallback_api_key"] = os.environ.get("LLM_FALLBACK_API_KEY", "")
+    yaml_data["llm_fallback_base_url"] = os.environ.get("LLM_FALLBACK_BASE_URL", "")
+    yaml_data["llm_fallback_model"] = os.environ.get("LLM_FALLBACK_MODEL", "")
+    yaml_data["gateway_api_key"] = os.environ.get("GATEWAY_API_KEY", "")
     yaml_data["obsidian_vault"] = os.environ.get("OBSIDIAN_VAULT", "")
     yaml_data["telegram_bot_token"] = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     yaml_data["ragas_judge_api_key"] = os.environ.get("RAGAS_JUDGE_API_KEY", "")
@@ -210,6 +245,12 @@ def load_config(
     if qdrant_url_env:
         yaml_data.setdefault("qdrant", {})
         yaml_data["qdrant"]["url"] = qdrant_url_env
+
+    # GATEWAY_BASE_URL из env переопределяет config.yaml — внутри docker шлюз доступен по имени сервиса
+    gateway_url_env = os.environ.get("GATEWAY_BASE_URL")
+    if gateway_url_env:
+        yaml_data.setdefault("gateway", {})
+        yaml_data["gateway"]["base_url"] = gateway_url_env
 
     # 4. Pydantic сам валидирует и подставит дефолты для пустых секций
     return AppConfig(**yaml_data)
@@ -240,9 +281,18 @@ if __name__ == "__main__":
 
     # маскируем секреты для безопасного вывода
     safe_dump = cfg.model_dump()
-    if safe_dump.get("nano_gpt_api_key"):
-        key = safe_dump["nano_gpt_api_key"]
-        safe_dump["nano_gpt_api_key"] = key[:10] + "..." + key[-4:] if len(key) > 14 else "***"
+
+    def _mask(key: str) -> str:  # короткий хелпер: показываем начало и конец ключа
+        return key[:10] + "..." + key[-4:] if len(key) > 14 else "***"
+
+    for secret_field in (
+        "llm_primary_api_key",
+        "llm_fallback_api_key",
+        "gateway_api_key",
+        "ragas_judge_api_key",
+    ):
+        if safe_dump.get(secret_field):
+            safe_dump[secret_field] = _mask(safe_dump[secret_field])
     if safe_dump.get("telegram_bot_token"):
         token = safe_dump["telegram_bot_token"]
         safe_dump["telegram_bot_token"] = token[:6] + "..." if token else ""
