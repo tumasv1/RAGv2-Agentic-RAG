@@ -130,7 +130,12 @@ def create_app() -> FastAPI:
         return FileResponse(
             static_dir / "js/sw.js",
             media_type="application/javascript",
-            headers={"Service-Worker-Allowed": "/"},
+            # no-store: браузер и nginx не должны кешировать скрипт SW.
+            # Это гарантирует что при деплое новой версии браузер сразу подхватит её.
+            headers={
+                "Service-Worker-Allowed": "/",
+                "Cache-Control": "no-store",
+            },
         )
 
     # ── Роутеры ──

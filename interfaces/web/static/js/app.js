@@ -562,8 +562,26 @@ updateThemeColor();
 
 // Регистрация service worker для PWA
 if ('serviceWorker' in navigator) {
+  // Флаг: был ли уже контроллер до регистрации.
+  // controllerchange при первой установке SW не должен вызывать reload.
+  const hadController = !!navigator.serviceWorker.controller;
+
+  // Когда новый SW перехватывает управление — перезагружаем страницу.
+  // Это нужно чтобы получить свежий HTML с сервера после обновления SW.
+  // (Без этого пользователь видел бы страницу из кэша старого SW.)
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) {
+      window.location.reload();
+    }
+  });
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
+      .then(reg => {
+        // Форсируем проверку обновления при каждой загрузке
+        // чтобы новый sw.js подхватился без ожидания
+        reg.update().catch(() => {});
+      })
       .catch(err => console.warn('SW регистрация не удалась:', err));
   });
 }
