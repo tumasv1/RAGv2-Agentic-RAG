@@ -115,6 +115,11 @@ def create_app() -> FastAPI:
     # ── Proxy middleware (для работы за nginx/reverse proxy с HTTPS) ──
     app.add_middleware(ProxyHeadersMiddleware)
 
+    # ── Метрики Prometheus (/metrics): RPS, latency, статусы по эндпоинтам ──
+    from prometheus_fastapi_instrumentator import Instrumentator
+
+    Instrumentator().instrument(app).expose(app, include_in_schema=False)
+
     # ── Static (CSS/JS) ──
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
