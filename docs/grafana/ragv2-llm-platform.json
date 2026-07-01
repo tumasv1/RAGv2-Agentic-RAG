@@ -592,7 +592,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{job=\"ragv2_containers\", id=~\"/system.slice/(docker|containerd)\\.service\"}[2m])) * 100",
+          "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{job=\"ragv2_containers\", id=~\"/system.slice/(docker|containerd)[.]service\"}[2m])) * 100",
           "legendFormat": "{{id}}",
           "refId": "A"
         },
@@ -626,7 +626,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "container_memory_usage_bytes{job=\"ragv2_containers\", id=~\"/system.slice/(docker|containerd)\\.service\"}",
+          "expr": "container_memory_usage_bytes{job=\"ragv2_containers\", id=~\"/system.slice/(docker|containerd)[.]service\"}",
           "legendFormat": "{{id}}",
           "refId": "A"
         },
