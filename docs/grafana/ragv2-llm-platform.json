@@ -30,7 +30,7 @@
   "timezone": "browser",
   "title": "RAGv2 / LLM Platform",
   "uid": "ragv2-llm-platform",
-  "version": 1,
+  "version": 2,
   "panels": [
 
     {
@@ -558,82 +558,6 @@
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "node_memory_MemAvailable_bytes{job=\"ragv2_node\"}",
           "legendFormat": "Доступно",
-          "refId": "B"
-        }
-      ]
-    },
-
-    {
-      "id": 30,
-      "type": "row",
-      "title": "Контейнеры Docker",
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 41 }
-    },
-
-    {
-      "id": 31,
-      "type": "timeseries",
-      "title": "CPU по системным сервисам (cgroup)",
-      "description": "cAdvisor на LXC видит только systemd cgroups, без разбивки по Docker-контейнерам. docker.service = сумма всех контейнеров.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 42 },
-      "options": {
-        "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "list", "placement": "bottom" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 1, "fillOpacity": 10 }
-        }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{job=\"ragv2_containers\", id=~\"/system.slice/(docker|containerd)[.]service\"}[2m])) * 100",
-          "legendFormat": "{{id}}",
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(container_cpu_usage_seconds_total{job=\"ragv2_containers\", id=\"/\"}[2m]) * 100",
-          "legendFormat": "хост (всего)",
-          "refId": "B"
-        }
-      ]
-    },
-
-    {
-      "id": 32,
-      "type": "timeseries",
-      "title": "RAM по системным сервисам (cgroup)",
-      "description": "cAdvisor на LXC видит только systemd cgroups. docker.service = сумма всех Docker-контейнеров.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 42 },
-      "options": {
-        "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "list", "placement": "bottom" }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 1, "fillOpacity": 10 }
-        }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "container_memory_usage_bytes{job=\"ragv2_containers\", id=~\"/system.slice/(docker|containerd)[.]service\"}",
-          "legendFormat": "{{id}}",
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "container_memory_usage_bytes{job=\"ragv2_containers\", id=\"/\"}",
-          "legendFormat": "хост (всего)",
           "refId": "B"
         }
       ]
