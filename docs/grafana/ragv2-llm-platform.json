@@ -241,7 +241,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(litellm_requests_total{job=\"litellm_gateway\"}[1m])) * 60",
+          "expr": "sum(rate(litellm_proxy_total_requests_metric_total{job=\"litellm_gateway\", route=~\"/v?1?/chat/completions\", status_code=\"200\"}[1m])) * 60",
           "legendFormat": "req/min",
           "refId": "A"
         }
@@ -312,7 +312,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(litellm_llm_api_latency_metric_bucket{job=\"litellm_gateway\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(litellm_request_total_latency_metric_bucket{job=\"litellm_gateway\"}[5m])))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -322,7 +322,7 @@
     {
       "id": 14,
       "type": "timeseries",
-      "title": "LLM запросы по провайдеру (RPS)",
+      "title": "LLM запросы по клиенту (RPS)",
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
       "options": {
@@ -339,8 +339,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (api_base) (rate(litellm_requests_total{job=\"litellm_gateway\"}[2m]))",
-          "legendFormat": "{{api_base}}",
+          "expr": "sum by (api_key_alias) (rate(litellm_proxy_total_requests_metric_total{job=\"litellm_gateway\", route=~\"/v?1?/chat/completions\"}[2m]))",
+          "legendFormat": "{{api_key_alias}}",
           "refId": "A"
         }
       ]
@@ -366,14 +366,14 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.50, sum by (le, model) (rate(litellm_llm_api_latency_metric_bucket{job=\"litellm_gateway\"}[5m])))",
-          "legendFormat": "p50 {{model}}",
+          "expr": "histogram_quantile(0.50, sum by (le, api_key_alias) (rate(litellm_request_total_latency_metric_bucket{job=\"litellm_gateway\"}[5m])))",
+          "legendFormat": "p50 {{api_key_alias}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(litellm_llm_api_latency_metric_bucket{job=\"litellm_gateway\"}[5m])))",
-          "legendFormat": "p95 {{model}}",
+          "expr": "histogram_quantile(0.95, sum by (le, api_key_alias) (rate(litellm_request_total_latency_metric_bucket{job=\"litellm_gateway\"}[5m])))",
+          "legendFormat": "p95 {{api_key_alias}}",
           "refId": "B"
         }
       ]
@@ -574,7 +574,8 @@
     {
       "id": 31,
       "type": "timeseries",
-      "title": "CPU по контейнерам",
+      "title": "CPU по системным сервисам (cgroup)",
+      "description": "cAdvisor на LXC видит только systemd cgroups, без разбивки по Docker-контейнерам. docker.service = сумма всех контейнеров.",
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 42 },
       "options": {
@@ -591,9 +592,15 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{job=\"ragv2_containers\", name!=\"\"}[2m])) * 100",
-          "legendFormat": "{{name}}",
+          "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{job=\"ragv2_containers\", id=~\"/system.slice/(docker|containerd)\\.service\"}[2m])) * 100",
+          "legendFormat": "{{id}}",
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(container_cpu_usage_seconds_total{job=\"ragv2_containers\", id=\"/\"}[2m]) * 100",
+          "legendFormat": "хост (всего)",
+          "refId": "B"
         }
       ]
     },
@@ -601,7 +608,8 @@
     {
       "id": 32,
       "type": "timeseries",
-      "title": "RAM по контейнерам",
+      "title": "RAM по системным сервисам (cgroup)",
+      "description": "cAdvisor на LXC видит только systemd cgroups. docker.service = сумма всех Docker-контейнеров.",
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 42 },
       "options": {
@@ -618,9 +626,15 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "container_memory_usage_bytes{job=\"ragv2_containers\", name!=\"\"}",
-          "legendFormat": "{{name}}",
+          "expr": "container_memory_usage_bytes{job=\"ragv2_containers\", id=~\"/system.slice/(docker|containerd)\\.service\"}",
+          "legendFormat": "{{id}}",
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "container_memory_usage_bytes{job=\"ragv2_containers\", id=\"/\"}",
+          "legendFormat": "хост (всего)",
+          "refId": "B"
         }
       ]
     }
