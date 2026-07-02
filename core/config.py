@@ -135,6 +135,19 @@ class GatewayConfig(BaseModel):
     model: str = "agent-main"  # виртуальное имя модели из deploy/litellm/config.yaml
 
 
+class LangfuseConfig(BaseModel):
+    """
+    Настройки трейсинга через self-hosted Langfuse (проект ../Langfuse, свой LXC).
+
+    В отличие от gateway (управляет ЧЕРЕЗ что ходит LLM), это read-only наблюдатель:
+    если enabled=False или ключей нет — граф просто не подключает CallbackHandler,
+    поведение агента не меняется.
+    """
+
+    enabled: bool = False
+    host: str = "http://localhost:3000"
+
+
 class AppConfig(BaseModel):
     """
     Главная модель конфигурации.
@@ -155,6 +168,9 @@ class AppConfig(BaseModel):
     llm_fallback_model: str = ""
     # ключ для обращения к самому шлюзу LiteLLM (master или virtual key)
     gateway_api_key: str = ""
+    # ключи проекта Langfuse (public/secret) — трейсинг графа агента
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
 
     # прочие секреты и пути
     obsidian_vault: str
@@ -175,6 +191,7 @@ class AppConfig(BaseModel):
     persistence: PersistenceConfig = PersistenceConfig()
     mcp: MCPConfig = MCPConfig()
     gateway: GatewayConfig = GatewayConfig()
+    langfuse: LangfuseConfig = LangfuseConfig()
 
 
 # --- Определение корня проекта ---
@@ -235,6 +252,8 @@ def load_config(
     yaml_data["llm_fallback_base_url"] = os.environ.get("LLM_FALLBACK_BASE_URL", "")
     yaml_data["llm_fallback_model"] = os.environ.get("LLM_FALLBACK_MODEL", "")
     yaml_data["gateway_api_key"] = os.environ.get("GATEWAY_API_KEY", "")
+    yaml_data["langfuse_public_key"] = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+    yaml_data["langfuse_secret_key"] = os.environ.get("LANGFUSE_SECRET_KEY", "")
     yaml_data["obsidian_vault"] = os.environ.get("OBSIDIAN_VAULT", "")
     yaml_data["telegram_bot_token"] = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     yaml_data["ragas_judge_api_key"] = os.environ.get("RAGAS_JUDGE_API_KEY", "")
@@ -253,7 +272,13 @@ def load_config(
         yaml_data["gateway"]["base_url"] = gateway_url_env
 
     # 4. Pydantic сам валидирует и подставит дефолты для пустых секций
-    return AppConfig(**yaml_data)
+    cfg = AppConfig(**yaml_data)
+
+    # langfuse-sdk сам читает LANGFUSE_HOST/PUBLIC_KEY/SECRET_KEY из os.environ (get_client()),
+    # а host у нас настраивается через config.yaml, а не .env — прокидываем, если ещё не задан
+    os.environ.setdefault("LANGFUSE_HOST", cfg.langfuse.host)
+
+    return cfg
 
 
 # --- Синглтон ---

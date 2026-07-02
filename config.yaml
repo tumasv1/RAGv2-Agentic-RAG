@@ -64,6 +64,11 @@ persistence:
   cleanup_every_sec: 3600            # раз в час ленивый cleanup при GET /api/sessions
   title_max_words: 6                 # ограничение длины автогенерируемого названия
 
+# — Трейсинг (self-hosted Langfuse, проект ../Langfuse) —
+langfuse:
+  enabled: true                            # true = граф подключает CallbackHandler; нужны LANGFUSE_PUBLIC_KEY/SECRET_KEY в .env
+  host: "http://192.168.3.204:3000"           # LAN-адрес Langfuse LXC (поправить после деплоя)
+
 # — Встроенный MCP-сервер для работы с заметками —
 mcp:
   enabled: true                      # подмешивать MCP-тулзы в граф агента

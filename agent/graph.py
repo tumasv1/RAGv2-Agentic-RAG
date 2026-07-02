@@ -166,6 +166,30 @@ async def ensure_graph():
     return await _ensure_graph()
 
 
+_langfuse_handler = None
+
+
+def _get_langfuse_handler():
+    """
+    Возвращает CallbackHandler Langfuse, если трейсинг включён и заданы ключи проекта.
+
+    None означает «не трейсим» — граф работает как обычно, просто без CallbackHandler
+    в config["callbacks"].
+    """
+    global _langfuse_handler
+
+    cfg = get_config()
+    if not cfg.langfuse.enabled or not cfg.langfuse_public_key or not cfg.langfuse_secret_key:
+        return None
+
+    if _langfuse_handler is None:
+        from langfuse.langchain import CallbackHandler
+
+        _langfuse_handler = CallbackHandler()
+
+    return _langfuse_handler
+
+
 def get_graph():
     """
     Возвращает граф-синглтон (синхронная версия).
@@ -213,6 +237,9 @@ async def ask(
         # страховка от бесконечного цикла (сверх нашего guardrail)
         "recursion_limit": cfg.agent.max_iterations * 2 + 5,
     }
+    langfuse_handler = _get_langfuse_handler()
+    if langfuse_handler:
+        config["callbacks"] = [langfuse_handler]
 
     start_time = time.time()
 
@@ -291,6 +318,9 @@ async def ask_debug(
         "recursion_limit": cfg.agent.max_iterations * 2 + 5,
         "callbacks": [tracer],
     }
+    langfuse_handler = _get_langfuse_handler()
+    if langfuse_handler:
+        config["callbacks"].append(langfuse_handler)
 
     start_time = time.time()
 
