@@ -36,6 +36,9 @@ dependencies = [
     "aiosqlite>=0.20.0",
     # Трейсинг графа агента в self-hosted Langfuse (import langfuse.langchain.CallbackHandler)
     "langfuse>=3.0.0,<5.0.0",
+    # langfuse.langchain.CallbackHandler жёстко требует пакет langchain (не только langchain-core) —
+    # сам RAGv2 из него ничего не импортирует, но langfuse делает `import langchain` внутри себя
+    "langchain>=1.0.0,<2.0.0",
 ]
 
 [project.optional-dependencies]
