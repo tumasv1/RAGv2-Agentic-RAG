@@ -191,7 +191,7 @@ def _get_langfuse_handler():
     return _langfuse_handler
 
 
-def _langfuse_span(name: str):
+def _langfuse_span(name: str, session_id: str | None = None):
     """
     Контекст-менеджер корневого спана Langfuse (или пустышка, если трейсинг выключен).
 
@@ -199,14 +199,24 @@ def _langfuse_span(name: str):
     CallbackHandler вкладывает своё дерево в этот трейс, а ноды через
     get_langfuse_extra_body() узнают trace_id и пробрасывают его в шлюз.
     Так весь вопрос (дерево графа + генерации LiteLLM) собирается в ОДИН трейс.
+
+    session_id (= thread_id сессии) группирует трейсы одного диалога во
+    вкладке Sessions в UI Langfuse.
     """
     if _get_langfuse_handler() is None:
         return contextlib.nullcontext()
-    from langfuse import get_client
+    from langfuse import get_client, propagate_attributes
 
-    # в langfuse SDK v4 спаны создаются через start_as_current_observation
-    # (метод start_as_current_span был в v3 и удалён)
-    return get_client().start_as_current_observation(name=name, as_type="span")
+    @contextlib.contextmanager
+    def _cm():
+        # propagate_attributes — снаружи, чтобы спан и всё дерево под ним
+        # унаследовали session_id. В langfuse SDK v4 спаны создаются через
+        # start_as_current_observation (start_as_current_span был в v3 и удалён).
+        with propagate_attributes(session_id=session_id):
+            with get_client().start_as_current_observation(name=name, as_type="span"):
+                yield
+
+    return _cm()
 
 
 def get_graph():
@@ -263,7 +273,7 @@ async def ask(
     start_time = time.time()
 
     try:
-        with _langfuse_span("RAGv2-ask"):
+        with _langfuse_span("RAGv2-ask", session_id=thread_id):
             result = await graph.ainvoke(
                 {
                     "messages": [
@@ -345,7 +355,7 @@ async def ask_debug(
     start_time = time.time()
 
     try:
-        with _langfuse_span("RAGv2-ask-debug"):
+        with _langfuse_span("RAGv2-ask-debug", session_id=thread_id):
             result = await graph.ainvoke(
                 {
                     "messages": [
