@@ -63,6 +63,45 @@ def get_llm() -> ChatOpenAI:
     return _llm
 
 
+# --- Проброс trace_id в LLM-шлюз (Langfuse) ---
+
+
+def get_langfuse_extra_body() -> dict | None:
+    """
+    Возвращает extra_body с trace_id текущего Langfuse-трейса — или None.
+
+    Зачем: без этого один вопрос агенту порождает ДВА независимых трейса
+    (дерево графа от CallbackHandler + плоская генерация от шлюза), и
+    стоимость вызова считается в Langfuse дважды. Если передать шлюзу
+    metadata.existing_trace_id, LiteLLM кладёт свою генерацию в тот же
+    трейс, что и граф — один вопрос, один трейс, честная стоимость.
+
+    None означает «не пробрасываем»: трейсинг выключен, ключей нет или
+    вызов идёт вне активного трейса (eval, generate_title) — тогда шлюз
+    просто создаст свой отдельный трейс, как раньше.
+    """
+    cfg = get_config()
+    if not cfg.langfuse.enabled or not cfg.langfuse_public_key or not cfg.langfuse_secret_key:
+        return None
+    try:
+        # сначала смотрим OTEL напрямую: если активного спана нет (eval,
+        # generate_title) — выходим тихо, не дёргая langfuse (он пишет
+        # шумный "Context error" в лог при вызове вне спана)
+        from opentelemetry import trace as otel_trace
+
+        if not otel_trace.get_current_span().get_span_context().is_valid:
+            return None
+
+        from langfuse import get_client
+
+        trace_id = get_client().get_current_trace_id()
+    except Exception:
+        return None
+    if not trace_id:
+        return None
+    return {"metadata": {"existing_trace_id": trace_id}}
+
+
 # --- CLI: python -m core.llm_client ---
 
 if __name__ == "__main__":

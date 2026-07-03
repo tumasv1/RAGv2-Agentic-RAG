@@ -19,6 +19,7 @@ thread_id: идентификатор сессии; один thread_id = одн�
 """
 
 import asyncio
+import contextlib
 import logging
 import re
 import time
@@ -190,6 +191,24 @@ def _get_langfuse_handler():
     return _langfuse_handler
 
 
+def _langfuse_span(name: str):
+    """
+    Контекст-менеджер корневого спана Langfuse (или пустышка, если трейсинг выключен).
+
+    Зачем: спан создаёт ambient OTEL-контекст на время работы графа —
+    CallbackHandler вкладывает своё дерево в этот трейс, а ноды через
+    get_langfuse_extra_body() узнают trace_id и пробрасывают его в шлюз.
+    Так весь вопрос (дерево графа + генерации LiteLLM) собирается в ОДИН трейс.
+    """
+    if _get_langfuse_handler() is None:
+        return contextlib.nullcontext()
+    from langfuse import get_client
+
+    # в langfuse SDK v4 спаны создаются через start_as_current_observation
+    # (метод start_as_current_span был в v3 и удалён)
+    return get_client().start_as_current_observation(name=name, as_type="span")
+
+
 def get_graph():
     """
     Возвращает граф-синглтон (синхронная версия).
@@ -244,16 +263,17 @@ async def ask(
     start_time = time.time()
 
     try:
-        result = await graph.ainvoke(
-            {
-                "messages": [
-                    SystemMessage(content=SYSTEM_PROMPT, id="system-prompt"),
-                    ("user", question),
-                ],
-                "iteration_count": 0,
-            },
-            config=config,
-        )
+        with _langfuse_span("RAGv2-ask"):
+            result = await graph.ainvoke(
+                {
+                    "messages": [
+                        SystemMessage(content=SYSTEM_PROMPT, id="system-prompt"),
+                        ("user", question),
+                    ],
+                    "iteration_count": 0,
+                },
+                config=config,
+            )
     except Exception as e:
         logger.error("Ошибка графа агента: %s", e, exc_info=True)
         return AgentResponse(
@@ -325,16 +345,17 @@ async def ask_debug(
     start_time = time.time()
 
     try:
-        result = await graph.ainvoke(
-            {
-                "messages": [
-                    SystemMessage(content=SYSTEM_PROMPT, id="system-prompt"),
-                    ("user", question),
-                ],
-                "iteration_count": 0,
-            },
-            config=config,
-        )
+        with _langfuse_span("RAGv2-ask-debug"):
+            result = await graph.ainvoke(
+                {
+                    "messages": [
+                        SystemMessage(content=SYSTEM_PROMPT, id="system-prompt"),
+                        ("user", question),
+                    ],
+                    "iteration_count": 0,
+                },
+                config=config,
+            )
     except Exception as e:
         logger.error("Ошибка графа агента (debug): %s", e, exc_info=True)
         error_response = AgentResponse(

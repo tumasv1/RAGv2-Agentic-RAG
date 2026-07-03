@@ -19,7 +19,7 @@ from agent.prompts import GENERATE_PROMPT
 from agent.state import AgentState
 from agent.tools import get_tools
 from core.config import get_config
-from core.llm_client import get_llm
+from core.llm_client import get_langfuse_extra_body, get_llm
 
 
 def agent_node(state: AgentState) -> dict:
@@ -36,7 +36,11 @@ def agent_node(state: AgentState) -> dict:
     tools = get_tools()
     llm_with_tools = llm.bind_tools(tools)
 
-    response = llm_with_tools.invoke(state["messages"])
+    # проброс trace_id в шлюз — генерация LiteLLM ляжет в тот же Langfuse-трейс
+    extra_body = get_langfuse_extra_body()
+    kwargs = {"extra_body": extra_body} if extra_body else {}
+
+    response = llm_with_tools.invoke(state["messages"], **kwargs)
     return {"messages": [response]}
 
 
@@ -99,7 +103,12 @@ def generate_node(state: AgentState) -> dict:
     # агент не ответил — генерируем финальный ответ через LLM
     llm = get_llm()
     generate_messages = [SystemMessage(content=GENERATE_PROMPT)] + list(messages)
-    response = llm.invoke(generate_messages)
+
+    # проброс trace_id в шлюз — как в agent_node
+    extra_body = get_langfuse_extra_body()
+    kwargs = {"extra_body": extra_body} if extra_body else {}
+
+    response = llm.invoke(generate_messages, **kwargs)
 
     return {"messages": [response]}
 
