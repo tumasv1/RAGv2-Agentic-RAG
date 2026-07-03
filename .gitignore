@@ -43,3 +43,4 @@ CLAUDE.md
 .ruff_cache/
 docs/knowledge base/.obsidian/
 docs/knowledge base/plan/
+docs/knowledge base/description/langfuse-tracing-improvements.md
