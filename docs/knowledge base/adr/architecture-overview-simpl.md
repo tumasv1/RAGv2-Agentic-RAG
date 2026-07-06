@@ -37,6 +37,8 @@ flowchart TB
         HF["HuggingFace Hub"]
     end
 
+    Observability["📊 Наблюдаемость<br/>Prometheus/Grafana + Langfuse<br/>(отдельные LXC)"]
+
     Browser -->|"HTTPS"| Web
     Obsidian -->|"WebDAV HTTPS"| WebDAV
     Web --> Agent
@@ -51,6 +53,8 @@ flowchart TB
     Make -->|"deploy → git pull"| Server
     Repo -->|"main branch"| Server
     HF -.->|"модели (1 раз)"| App
+    Agent -.->|"метрики + трейсы"| Observability
+    LiteLLM -.->|"метрики + трейсы"| Observability
 
     %% Цвета
     classDef user fill:#fef3c7,stroke:#a16207,color:#000
@@ -59,6 +63,7 @@ flowchart TB
     classDef infra fill:#e2e8f0,stroke:#475569,color:#000
     classDef external fill:#fee2e2,stroke:#b91c1c,color:#000
     classDef gateway fill:#fff7ed,stroke:#c2410c,color:#000
+    classDef monitoring fill:#dbeafe,stroke:#1d4ed8,color:#000
 
     class Browser,Obsidian user
     class Repo,Make dev
@@ -66,4 +71,5 @@ flowchart TB
     class Qdrant,WebDAV,SQLite,Server infra
     class Providers,HF external
     class LiteLLM,Gateway gateway
+    class Observability monitoring
 ```

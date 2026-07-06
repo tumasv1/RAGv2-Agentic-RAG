@@ -77,6 +77,18 @@ flowchart TB
         LiteLLM --- GatewayRedis
     end
 
+    %% — Наблюдаемость: метрики + трейсинг (отдельные LXC) —
+    subgraph Observability["📊 Наблюдаемость"]
+        subgraph MonitoringLXC["LXC 192.168.3.125"]
+            Prometheus["Prometheus"]
+            Grafana["Grafana"]
+            Prometheus --- Grafana
+        end
+        subgraph LangfuseLXC["LXC 192.168.3.204"]
+            Langfuse["Langfuse<br/>web+worker+ClickHouse+Redis+MinIO"]
+        end
+    end
+
     %% — Внешние API —
     subgraph Ext["☁️ Внешние API"]
         OpenRouter["OpenRouter<br/>openai/gpt-4.1-mini"]
@@ -114,6 +126,12 @@ flowchart TB
     LiteLLM -->|"LB / fallback"| OpenRouter
     LiteLLM -->|"LB / fallback"| NanoGPT
 
+    %% — Наблюдаемость: метрики (pull, периодически) + трейсинг (push, на каждый вызов) —
+    App -.->|"scrape /metrics"| Prometheus
+    GatewayLXC -.->|"scrape /metrics"| Prometheus
+    Agent -->|"CallbackHandler<br/>(дерево ReAct)"| Langfuse
+    LiteLLM -->|"success_callback<br/>(все клиенты шлюза)"| Langfuse
+
     %% — Связи app ↔ внутренние сервисы —
     Retriever -->|REST| Qdrant
     Qdrant --- QdrantVol
@@ -127,6 +145,7 @@ flowchart TB
     classDef storage fill:#f3e8ff,stroke:#7e22ce,color:#000
     classDef external fill:#fee2e2,stroke:#b91c1c,color:#000
     classDef gateway fill:#fff7ed,stroke:#c2410c,color:#000
+    classDef monitoring fill:#dbeafe,stroke:#1d4ed8,color:#000
     classDef legend fill:#ffffff,stroke:#94a3b8,color:#000
 
     class Browser,ObsidianMobile,ObsidianDesktop user
@@ -136,6 +155,7 @@ flowchart TB
     class SQLite,QdrantVol,VaultVol,HFCache,Storage storage
     class OpenRouter,NanoGPT,HF external
     class LiteLLM,GatewayPG,GatewayRedis,GatewayLXC gateway
+    class Prometheus,Grafana,Langfuse,MonitoringLXC,LangfuseLXC,Observability monitoring
 
     %% — Легенда —
     subgraph Legend["🗂 Легенда"]
@@ -146,6 +166,7 @@ flowchart TB
         L5["🟪 Хранилища"]
         L6["🟥 Внешние API"]
         L7["🟧 LLM-шлюз"]
+        L8["🩵 Наблюдаемость"]
     end
     class Legend legend
 ```
@@ -158,6 +179,7 @@ flowchart TB
 - ⚪ **Серое** — инфраструктура (контейнеры, хост, compose).
 - 🔵 **Синее** — dev-машина и GitHub (путь кода до прода).
 - 🔴 **Красное** — внешние API (LLM-провайдер, HuggingFace).
+- 🩵 **Голубое** — наблюдаемость: метрики (Prometheus/Grafana) и трейсинг (Langfuse), обе — на отдельных LXC.
 
 ## Ключевые особенности
 
@@ -170,6 +192,9 @@ flowchart TB
 - **Деплой — pull-модель**: `make deploy` ходит по SSH на `192.168.3.160`, делает `git pull` + `docker compose up -d --build`. CI/CD сборки на GitHub нет.
 - **fastembed BM25 patch**: `py_rust_stemmers` сегфолтит на Python 3.14 → в site-packages подменён на обёртку `snowballstemmer`. При переустановке зависимостей патч надо накатывать заново. (На проде Python 3.11 — патч не нужен, актуален только локально.)
 - **Telegram-бот пока не запущен** — задел есть (`TELEGRAM_BOT_TOKEN` в `.env`), но канала на схеме нет до фактического включения.
+- **Метрики (pull) vs трейсинг (push)** — разные модели доставки, поэтому на схеме разные типы стрелок. Prometheus сам периодически опрашивает `/metrics` у приложения и шлюза (`-.->`, не hot-path — сбой Prometheus не роняет RAGv2/шлюз, просто нет свежих данных). Трейсы, наоборот, отправляет каждый вызывающий (CallbackHandler графа и `success_callback` шлюза), синхронно с запросом (`-->`), хоть и асинхронно/батчами внутри SDK.
+- **Один трейс на вопрос**: без специальной обвязки CallbackHandler графа и `success_callback` шлюза создавали бы два независимых трейса на один вопрос агенту (см. [[0016-langfuse-tracing]]). Граф оборачивает вызов в корневой спан Langfuse и передаёт его trace_id шлюзу через `extra_body` — в трейсе видно и дерево ReAct, и то, какой провайдер (`api_base`) реально ответил.
+- **Наблюдаемость — опциональный слой**: `langfuse.enabled: false` в `config.yaml` (или отсутствие ключей) отключает трейсинг графа без изменения поведения агента; аналогично шлюз и приложение продолжают работать, даже если Prometheus/Langfuse LXC недоступны.
 
 ## Как обновлять
 
