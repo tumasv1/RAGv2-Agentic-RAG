@@ -635,7 +635,15 @@ def generate_title(question: str, answer: str) -> str:
             question=question[:500],
             answer=(answer or "")[:800],
         )
-        resp = llm.invoke(prompt)
+        # помечаем служебный вызов на стороне шлюза: его трейс в Langfuse
+        # получит имя "generate_title" и тег "utility" — чтобы утилитарные
+        # вызовы не смешивались с ответами агента в списке трейсов.
+        # (generate_title крутится в фоновом потоке вне графа, поэтому своего
+        #  span-а у него нет — размечаем через metadata шлюза.)
+        resp = llm.invoke(
+            prompt,
+            extra_body={"metadata": {"trace_name": "generate_title", "tags": ["utility"]}},
+        )
         raw = (resp.content if hasattr(resp, "content") else str(resp)) or ""
         title = raw.strip().strip('"').strip("'").strip(".").strip()
         words = title.split()
