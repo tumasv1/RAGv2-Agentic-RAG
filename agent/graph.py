@@ -191,20 +191,47 @@ def _get_langfuse_handler():
     return _langfuse_handler
 
 
-def _langfuse_span(name: str, session_id: str | None = None):
+def _trace_name(question: str, max_len: int = 60) -> str:
+    """
+    Короткое имя трейса из вопроса пользователя.
+
+    Без этого все трейсы графа назывались одинаково («RAGv2-ask») — в списке
+    из сотни трейсов нужный не найти глазами.
+    """
+    text = " ".join(question.split())
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
+
+
+class _NoOpSpan:
+    """Заглушка вместо спана Langfuse, когда трейсинг выключен — чтобы вызывающий код не ветвился."""
+
+    def update(self, **kwargs):
+        pass
+
+
+def _langfuse_span(question: str, session_id: str | None = None):
     """
     Контекст-менеджер корневого спана Langfuse (или пустышка, если трейсинг выключен).
 
-    Зачем: спан создаёт ambient OTEL-контекст на время работы графа —
+    Зачем спан: он создаёт ambient OTEL-контекст на время работы графа —
     CallbackHandler вкладывает своё дерево в этот трейс, а ноды через
     get_langfuse_extra_body() узнают trace_id и пробрасывают его в шлюз.
     Так весь вопрос (дерево графа + генерации LiteLLM) собирается в ОДИН трейс.
+
+    Имя и input трейса — сразу из вопроса; output проставляет вызывающий код
+    через span.update(output=...), когда получит финальный ответ — без этого
+    input/output самого трейса (то, что видно в списке) пустые, хотя дерево
+    внутри (LangGraph → ...) содержит полный текст. Trace-level input/output
+    в Langfuse SDK v4 берутся из корневого observation автоматически —
+    отдельный (deprecated) set_trace_io() не нужен.
 
     session_id (= thread_id сессии) группирует трейсы одного диалога во
     вкладке Sessions в UI Langfuse.
     """
     if _get_langfuse_handler() is None:
-        return contextlib.nullcontext()
+        return contextlib.nullcontext(_NoOpSpan())
     from langfuse import get_client, propagate_attributes
 
     @contextlib.contextmanager
@@ -213,8 +240,10 @@ def _langfuse_span(name: str, session_id: str | None = None):
         # унаследовали session_id. В langfuse SDK v4 спаны создаются через
         # start_as_current_observation (start_as_current_span был в v3 и удалён).
         with propagate_attributes(session_id=session_id):
-            with get_client().start_as_current_observation(name=name, as_type="span"):
-                yield
+            with get_client().start_as_current_observation(
+                name=_trace_name(question), as_type="span", input=question
+            ) as span:
+                yield span
 
     return _cm()
 
@@ -273,7 +302,7 @@ async def ask(
     start_time = time.time()
 
     try:
-        with _langfuse_span("RAGv2-ask", session_id=thread_id):
+        with _langfuse_span(question, session_id=thread_id) as span:
             result = await graph.ainvoke(
                 {
                     "messages": [
@@ -284,6 +313,22 @@ async def ask(
                 },
                 config=config,
             )
+
+            latency = time.time() - start_time
+            iterations = result.get("iteration_count", 0)
+            logger.info("Запрос обработан за %.2f сек, итераций: %d", latency, iterations)
+
+            # извлекаем ответ из последнего AI-сообщения
+            last_message = result["messages"][-1]
+            answer_text = (
+                last_message.content if hasattr(last_message, "content") else str(last_message)
+            )
+
+            # извлекаем источники и считаем чанки
+            sources = _extract_sources(answer_text)
+            chunks_used = _count_chunks(result["messages"])
+
+            span.update(output=answer_text)
     except Exception as e:
         logger.error("Ошибка графа агента: %s", e, exc_info=True)
         return AgentResponse(
@@ -291,18 +336,6 @@ async def ask(
             sources=[],
             has_answer=False,
         )
-
-    latency = time.time() - start_time
-    iterations = result.get("iteration_count", 0)
-    logger.info("Запрос обработан за %.2f сек, итераций: %d", latency, iterations)
-
-    # извлекаем ответ из последнего AI-сообщения
-    last_message = result["messages"][-1]
-    answer_text = last_message.content if hasattr(last_message, "content") else str(last_message)
-
-    # извлекаем источники и считаем чанки
-    sources = _extract_sources(answer_text)
-    chunks_used = _count_chunks(result["messages"])
 
     return AgentResponse(
         answer=answer_text,
@@ -355,7 +388,7 @@ async def ask_debug(
     start_time = time.time()
 
     try:
-        with _langfuse_span("RAGv2-ask-debug", session_id=thread_id):
+        with _langfuse_span(question, session_id=thread_id) as span:
             result = await graph.ainvoke(
                 {
                     "messages": [
@@ -366,6 +399,19 @@ async def ask_debug(
                 },
                 config=config,
             )
+
+            total_latency_ms = (time.time() - start_time) * 1000
+            iterations = result.get("iteration_count", 0)
+
+            last_message = result["messages"][-1]
+            answer_text = (
+                last_message.content if hasattr(last_message, "content") else str(last_message)
+            )
+
+            sources = _extract_sources(answer_text)
+            chunks_used = _count_chunks(result["messages"])
+
+            span.update(output=answer_text)
     except Exception as e:
         logger.error("Ошибка графа агента (debug): %s", e, exc_info=True)
         error_response = AgentResponse(
@@ -375,15 +421,6 @@ async def ask_debug(
         )
         trace = tracer.build_trace(question, thread_id, error_response, 0.0)
         return error_response, trace
-
-    total_latency_ms = (time.time() - start_time) * 1000
-    iterations = result.get("iteration_count", 0)
-
-    last_message = result["messages"][-1]
-    answer_text = last_message.content if hasattr(last_message, "content") else str(last_message)
-
-    sources = _extract_sources(answer_text)
-    chunks_used = _count_chunks(result["messages"])
 
     response = AgentResponse(
         answer=answer_text,
