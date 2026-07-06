@@ -237,9 +237,17 @@ def _langfuse_span(question: str, session_id: str | None = None):
     @contextlib.contextmanager
     def _cm():
         # propagate_attributes — снаружи, чтобы спан и всё дерево под ним
-        # унаследовали session_id. В langfuse SDK v4 спаны создаются через
-        # start_as_current_observation (start_as_current_span был в v3 и удалён).
-        with propagate_attributes(session_id=session_id):
+        # унаследовали session_id и тег RAGv2. В langfuse SDK v4 спаны создаются
+        # через start_as_current_observation (start_as_current_span был в v3 и удалён).
+        #
+        # ВАЖНО: тег "RAGv2" ставим здесь, а не полагаемся на langfuse_default_tags
+        # шлюза — раз RAGv2 сам владеет трейсом (создаёт его первым, до вызова
+        # шлюза), только владелец может проставить тег/атрибуты трейса. Генерация
+        # шлюза лишь пристёгивается к уже существующему трейсу через
+        # existing_trace_id и его теги не применяются (проверено эмпирически:
+        # requester_metadata содержал tags:["RAGv2"], но итоговый tags трейса
+        # оставался []).
+        with propagate_attributes(session_id=session_id, tags=["RAGv2"]):
             with get_client().start_as_current_observation(
                 name=_trace_name(question), as_type="span", input=question
             ) as span:
