@@ -3,7 +3,7 @@
     {
       "name": "DS_PROMETHEUS",
       "label": "Prometheus",
-      "description": "Prometheus на 192.168.3.125",
+      "description": "Prometheus на 10.0.0.30",
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
@@ -382,7 +382,7 @@
     {
       "id": 20,
       "type": "row",
-      "title": "Ресурсы хоста RAGv2 (192.168.3.160)",
+      "title": "Ресурсы хоста RAGv2 (10.0.0.10)",
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }
     },

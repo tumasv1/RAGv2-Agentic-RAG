@@ -16,7 +16,7 @@ status: принято
 
 Нужна автоматизация процесса разработки → тестирования → доставки кода на prod:
 - Dev-контур: MacBook с локальным разработкой
-- Prod-контур: 192.168.3.160 (Debian 13, Docker)
+- Prod-контур: 10.0.0.10 (Debian 13, Docker)
 - Требуется понять и освоить CI/CD
 
 **Исходные данные:**
@@ -71,7 +71,7 @@ status: принято
 - **Команда:** `make deploy`
 - **Что делает:**
   ```bash
-  ssh root@192.168.3.160 "cd /opt/ragv2 && git pull && docker compose up -d --build"
+  ssh root@10.0.0.10 "cd /opt/ragv2 && git pull && docker compose up -d --build"
   ```
 - **Преимущество:** Простой, отказоустойчивый, volumes не трогаются
 
@@ -105,7 +105,7 @@ status: принято
 | pre-commit хуки | Ты | MacBook | `.venv/bin/pip install pre-commit && pre-commit install` |
 | GitHub Actions | GitHub | Облако | Автоматически при push |
 | Makefile | Встроен | MacBook | `make deploy` |
-| Docker | Уже есть | prod (192.168.3.160) | Использует существующий docker-compose.yml |
+| Docker | Уже есть | prod (10.0.0.10) | Использует существующий docker-compose.yml |
 
 ---
 
@@ -163,7 +163,7 @@ pre-commit install
    
 2. **`make rollback`** — откат к предыдущему коммиту на prod
    ```bash
-   ssh root@192.168.3.160 "cd /opt/ragv2 && git revert HEAD --no-edit && docker compose up -d --build"
+   ssh root@10.0.0.10 "cd /opt/ragv2 && git revert HEAD --no-edit && docker compose up -d --build"
    ```
 
 3. **Нотификации в Telegram** при провале CI

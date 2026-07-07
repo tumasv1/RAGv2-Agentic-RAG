@@ -271,11 +271,16 @@ def load_config(
         yaml_data.setdefault("gateway", {})
         yaml_data["gateway"]["base_url"] = gateway_url_env
 
+    # LANGFUSE_HOST из env переопределяет config.yaml — по тому же принципу, что и GATEWAY_BASE_URL
+    langfuse_host_env = os.environ.get("LANGFUSE_HOST")
+    if langfuse_host_env:
+        yaml_data.setdefault("langfuse", {})
+        yaml_data["langfuse"]["host"] = langfuse_host_env
+
     # 4. Pydantic сам валидирует и подставит дефолты для пустых секций
     cfg = AppConfig(**yaml_data)
 
-    # langfuse-sdk сам читает LANGFUSE_HOST/PUBLIC_KEY/SECRET_KEY из os.environ (get_client()),
-    # а host у нас настраивается через config.yaml, а не .env — прокидываем, если ещё не задан
+    # langfuse-sdk сам читает LANGFUSE_HOST/PUBLIC_KEY/SECRET_KEY из os.environ (get_client())
     os.environ.setdefault("LANGFUSE_HOST", cfg.langfuse.host)
 
     return cfg

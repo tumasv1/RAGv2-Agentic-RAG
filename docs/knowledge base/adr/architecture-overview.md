@@ -69,7 +69,7 @@ flowchart TB
     end
 
     %% — LLM-шлюз (отдельный LXC) —
-    subgraph GatewayLXC["🔀 LLM-шлюз · LXC 192.168.3.203"]
+    subgraph GatewayLXC["🔀 LLM-шлюз · LXC 10.0.0.20"]
         LiteLLM["litellm proxy<br/>:4000 · OpenAI-совместимый<br/>LB · fallback · spend"]
         GatewayPG[("postgres<br/>ключи · бюджеты · SpendLogs")]
         GatewayRedis[("redis<br/>LB счётчики · rpm/tpm")]
@@ -79,12 +79,12 @@ flowchart TB
 
     %% — Наблюдаемость: метрики + трейсинг (отдельные LXC) —
     subgraph Observability["📊 Наблюдаемость"]
-        subgraph MonitoringLXC["LXC 192.168.3.125"]
+        subgraph MonitoringLXC["LXC 10.0.0.30"]
             Prometheus["Prometheus"]
             Grafana["Grafana"]
             Prometheus --- Grafana
         end
-        subgraph LangfuseLXC["LXC 192.168.3.204"]
+        subgraph LangfuseLXC["LXC 10.0.0.40"]
             Langfuse["Langfuse<br/>web+worker+ClickHouse+Redis+MinIO"]
         end
     end
@@ -186,10 +186,10 @@ flowchart TB
 - **MCP — subprocess, не HTTP**: `mcp_obsidian/server.py` запускается агентом как дочерний процесс через stdio (FastMCP). Сессия MCP должна быть создана в том же event-loop, в котором используется — иначе кросс-loop deadlock с uvicorn.
 - **Один shared volume `obsidian_vault`** монтируется и в `app` (как `/vault`, rw — нужен retriever'у и MCP), и в `webdav` — поэтому правки с телефона через Remotely Save сразу видны индексатору и агенту.
 - **Qdrant в Docker-режиме** (`http://qdrant:6333`), а не embedded. Embedded остался как fallback (надо вернуть `path` в `config.yaml`). Данные в volume `./qdrant_data`.
-- **LLM через общий LLM-шлюз (LiteLLM Proxy)**: все LLM-запросы из `app` идут на LXC `192.168.3.203:4000` (OpenAI-совместимый API). Шлюз маршрутизирует к OpenRouter и nano-gpt с балансировкой (`usage-based-routing-v2` через Redis) и автоматическим fallback. `app` хранит только `GATEWAY_API_KEY` (виртуальный ключ); реальные ключи провайдеров живут только на LXC шлюза. Локального LLM нет — CPU-сервер не тянет.
+- **LLM через общий LLM-шлюз (LiteLLM Proxy)**: все LLM-запросы из `app` идут на LXC `10.0.0.20:4000` (OpenAI-совместимый API). Шлюз маршрутизирует к OpenRouter и nano-gpt с балансировкой (`usage-based-routing-v2` через Redis) и автоматическим fallback. `app` хранит только `GATEWAY_API_KEY` (виртуальный ключ); реальные ключи провайдеров живут только на LXC шлюза. Локального LLM нет — CPU-сервер не тянет.
 - **HuggingFace Hub дёргается только при первом запуске** (скачивание E5-large и jina-reranker в volume-кеш). Дальше — оффлайн. BM25-модель ищется в кеше через `_find_bm25_model_path()` чтобы обойти HF rate-limit.
 - **Persistence — единая SQLite**: и LangGraph-чекпоинты (через `AsyncSqliteSaver` на `aiosqlite`), и метаданные сессий (через голый `sqlite3` в `agent/sessions.py`) живут в одном файле `data/agent.sqlite`. Cleanup ленивый, раз в час при `GET /api/sessions`.
-- **Деплой — pull-модель**: `make deploy` ходит по SSH на `192.168.3.160`, делает `git pull` + `docker compose up -d --build`. CI/CD сборки на GitHub нет.
+- **Деплой — pull-модель**: `make deploy` ходит по SSH на `10.0.0.10`, делает `git pull` + `docker compose up -d --build`. CI/CD сборки на GitHub нет.
 - **fastembed BM25 patch**: `py_rust_stemmers` сегфолтит на Python 3.14 → в site-packages подменён на обёртку `snowballstemmer`. При переустановке зависимостей патч надо накатывать заново. (На проде Python 3.11 — патч не нужен, актуален только локально.)
 - **Telegram-бот пока не запущен** — задел есть (`TELEGRAM_BOT_TOKEN` в `.env`), но канала на схеме нет до фактического включения.
 - **Метрики (pull) vs трейсинг (push)** — разные модели доставки, поэтому на схеме разные типы стрелок. Prometheus сам периодически опрашивает `/metrics` у приложения и шлюза (`-.->`, не hot-path — сбой Prometheus не роняет RAGv2/шлюз, просто нет свежих данных). Трейсы, наоборот, отправляет каждый вызывающий (CallbackHandler графа и `success_callback` шлюза), синхронно с запросом (`-->`), хоть и асинхронно/батчами внутри SDK.

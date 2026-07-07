@@ -1,8 +1,8 @@
 # Руководство: переключить RAGv2 на внешний LLM-шлюз
 
-Цель: RAGv2 перестаёт держать встроенный LiteLLM и начинает ходить к общему шлюзу на LXC `192.168.3.203`. Делается руками; занимает ~10 минут.
+Цель: RAGv2 перестаёт держать встроенный LiteLLM и начинает ходить к общему шлюзу на LXC `10.0.0.20`. Делается руками; занимает ~10 минут.
 
-Адреса в этом проекте: шлюз — `192.168.3.203:4000`, сервер RAGv2 — `192.168.3.201` (та же LAN).
+Адреса в этом проекте: шлюз — `10.0.0.20:4000`, сервер RAGv2 — `10.0.0.11` (та же LAN).
 
 ---
 
@@ -10,13 +10,13 @@
 
 На LXC шлюза:
 ```bash
-ssh root@192.168.3.203
+ssh root@10.0.0.20
 cd /opt/LLM-gateway
 ./scripts/create_project_key.sh ragv2 gpt-4.1-mini 5 200
 #                                 alias  модель      $/мес rpm
 ```
 В ответе найди поле `"key": "sk-..."` — **скопируй его**. Это и есть ключ RAGv2.
-(Альтернатива: UI `http://192.168.3.203:4000/ui` → Virtual Keys → Create.)
+(Альтернатива: UI `http://10.0.0.20:4000/ui` → Virtual Keys → Create.)
 
 ---
 
@@ -26,7 +26,7 @@ cd /opt/LLM-gateway
 ```yaml
 gateway:
   enabled: true
-  base_url: "http://192.168.3.203:4000/v1"   # было http://localhost:4000/v1
+  base_url: "http://10.0.0.20:4000/v1"   # было http://localhost:4000/v1
   model: "gpt-4.1-mini"                       # было agent-main (это имя из каталога шлюза)
 ```
 `base_url` тут используется при локальном запуске (`.venv`). В docker его переопределит env (шаг 4).
@@ -58,7 +58,7 @@ LLM_FALLBACK_MODEL=...
 1. **Удалить целиком сервис `litellm`** (блок `litellm:` … `depends_on: - litellm-db`).
 2. **Удалить целиком сервис `litellm-db`** (блок `litellm-db:` … `mem_limit: 256m`).
 3. В сервисе `app`:
-   - заменить `GATEWAY_BASE_URL: http://litellm:4000/v1` → `GATEWAY_BASE_URL: http://192.168.3.203:4000/v1`
+   - заменить `GATEWAY_BASE_URL: http://litellm:4000/v1` → `GATEWAY_BASE_URL: http://10.0.0.20:4000/v1`
    - убрать строку `- litellm` из `depends_on`.
 4. В секции `volumes:` внизу — удалить строку `litellm_db_data:`.
 
@@ -86,7 +86,7 @@ docker volume rm ragv2_litellm_db_data        # удалить их БД (рас
 
 **Что запрос реально прошёл через шлюз** — на LXC:
 ```bash
-ssh root@192.168.3.203 'cd /opt/LLM-gateway && docker compose exec -T postgres \
+ssh root@10.0.0.20 'cd /opt/LLM-gateway && docker compose exec -T postgres \
   psql -U litellm -d litellm -c "SELECT to_char(\"startTime\",'\''HH24:MI'\'') t, model_group, api_base FROM \"LiteLLM_SpendLogs\" ORDER BY \"startTime\" DESC LIMIT 3;"'
 # должна появиться свежая строка model_group=gpt-4.1-mini
 ```

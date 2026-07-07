@@ -40,7 +40,7 @@ services:
       - qdrant
       - webdav
 
-  # — Метрики хоста (CPU/RAM/диск/сеть) для Prometheus на 192.168.3.125 —
+  # — Метрики хоста (CPU/RAM/диск/сеть) для Prometheus на 10.0.0.30 —
   node_exporter:
     image: prom/node-exporter:latest
     restart: unless-stopped

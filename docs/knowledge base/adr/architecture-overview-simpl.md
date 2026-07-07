@@ -28,7 +28,7 @@ flowchart TB
         SQLite[("SQLite DB")]
     end
 
-    subgraph Gateway["🔀 LLM-шлюз (LXC 192.168.3.203)"]
+    subgraph Gateway["🔀 LLM-шлюз (LXC 10.0.0.20)"]
         LiteLLM["LiteLLM :4000<br/>LB · fallback · spend"]
     end
 

@@ -21,7 +21,7 @@
 | Веб-интерфейс + PWA    | FastAPI + Jinja2, устанавливается на телефон как приложение |
 | Персистентная история  | SQLite (AsyncSqliteSaver), хранение 60 дней                 |
 | Контекстное обогащение | Метаданные (файл, тип, теги, дата) инжектируются в чанк     |
-| CI/CD                  | GitHub Actions (ruff + pytest) → make deploy → Docker       |
+| CI/CD                  | GitHub Actions (ruff + базовые pytest-проверки) → make deploy → Docker |
 | 13 ADR                 | Все архитектурные решения задокументированы                 |
 
 ---
