@@ -1,4 +1,4 @@
-PROD_HOST ?= 10.0.0.10
+PROD_HOST ?= 192.168.3.160
 PROD_USER ?= root
 PROD_DIR  = /opt/ragv2
 
