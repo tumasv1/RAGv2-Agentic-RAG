@@ -21,8 +21,10 @@
 | Веб-интерфейс + PWA    | FastAPI + Jinja2, устанавливается на телефон как приложение |
 | Персистентная история  | SQLite (AsyncSqliteSaver), хранение 60 дней                 |
 | Контекстное обогащение | Метаданные (файл, тип, теги, дата) инжектируются в чанк     |
+| LLM-шлюз + fallback    | Общий LiteLLM Proxy, балансировка между провайдерами, автопереключение при сбое |
+| Наблюдаемость          | Prometheus/Grafana (метрики) + self-hosted Langfuse (трейс каждого запроса) |
 | CI/CD                  | GitHub Actions (ruff + базовые pytest-проверки) → make deploy → Docker |
-| 13 ADR                 | Все архитектурные решения задокументированы                 |
+| 16 ADR                 | Все архитектурные решения задокументированы                 |
 
 ---
 
@@ -119,7 +121,8 @@
 |---|---|
 | Агент | LangGraph 0.4+ (ReAct pattern, async via `ainvoke`) |
 | MCP | `langchain-mcp-adapters` 0.1+ + `mcp[cli]` 1.0+ (stdio transport) |
-| LLM | OpenRouter → gpt-4.1-mini (OpenAI-совместимый API) |
+| LLM | Общий LLM-шлюз (LiteLLM Proxy) → OpenRouter/nano-gpt, gpt-4.1-mini, балансировка + fallback |
+| Observability | Prometheus/Grafana (метрики) + self-hosted Langfuse (трейсинг) |
 | Embeddings | intfloat/multilingual-e5-large (CPU, 768-dim) |
 | Sparse | Qdrant/bm25 (FastEmbed, ONNX) |
 | Reranker | jinaai/jina-reranker-v2-base-multilingual (ONNX, CPU) |
@@ -140,37 +143,9 @@
 
 ![Чат](docs/screenshots/chat.png)
 
-### Debug-дашборд (трейс агента, retrieval, latency)
+### Трейс агента в Langfuse (дерево ReAct, latency, стоимость)
 
-![Debug](docs/screenshots/debug.png)
-
----
-
-## Конфигурация
-
-Все параметры — в `config.yaml`. Секреты — в `.env` (не попадает в git).
-
-Ключевые параметры поиска (подобраны по RAGAS-метрикам):
-
-```yaml
-search:
-  max_chunks: 15
-  fetch_k: 15
-  dense_score_threshold: 0.84   # cosine similarity
-  sparse_score_threshold: 1.35  # BM25 score
-  use_reranking: false          # кросс-энкодер, включить при желании
-
-ingest:
-  chunk_size: 800               # child-чанк (используется при поиске)
-  parent_chunk_size: 2000       # parent-чанк (передаётся в LLM)
-  parent_chunk_overlap: 200
-  enrich_content: true          # метаданные инжектируются в текст чанка
-
-mcp:
-  enabled: true                 # подключать MCP-тулзы при старте агента
-  excluded_tools: []            # имена MCP-тулзов, которые скрыть от агента
-  init_timeout_sec: 15.0        # таймаут на старт stdio-subprocess
-```
+![Langfuse-трейс](docs/screenshots/langfuse-trace.png)
 
 ---
 
@@ -244,7 +219,7 @@ ragv2/
 │   └── types.py        # SearchResult, AgentResponse
 │
 ├── docs/knowledge base/
-│   ├── adr/            # 12 Architecture Decision Records
+│   ├── adr/            # 16 Architecture Decision Records
 │   └── plan/           # планирование по фазам (Phase 0–4)
 │
 ├── docker-compose.yml
@@ -272,6 +247,9 @@ ragv2/
 | 0011 | PWA-поддержка |
 | 0012 | CI/CD: 4-слойный pipeline |
 | 0013 | MCP-интеграция: stdio vs HTTP, persistent session, async-граф |
+| 0014 | Переход на общий LLM-шлюз (LiteLLM Proxy): fallback + мультитенантность |
+| 0015 | Мониторинг на Prometheus/Grafana: расходы, задержки, fallback |
+| 0016 | Трейсинг LLM-запросов через self-hosted Langfuse |
 
 Все ADR в [`docs/knowledge base/adr/`](docs/knowledge%20base/adr/).
 
