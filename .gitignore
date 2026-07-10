@@ -35,6 +35,14 @@ data/agent.sqlite*
 reports/*.md
 reports/traces/
 
+# Golden set с реальными личными/корпоративными данными vault'а — не коммитим
+# (полная инфраструктура и пример структуры — ветка experiment/late-chunking)
+eval/golden_set.yaml
+
+# Сырой лог замеров eval — поле "question" дублирует реальные вопросы golden set.
+# Агрегированная сводка без личных данных — eval/results/baseline_history.md — коммитится
+eval/results/runs.jsonl
+
 # Прочие файлы
 other/
 #Claude
