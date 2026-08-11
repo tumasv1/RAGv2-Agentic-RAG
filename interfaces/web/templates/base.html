@@ -7,7 +7,11 @@
   <link rel="icon" href="/static/favicon.ico" sizes="48x48">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/icons/icon-16.png">
-  <link rel="manifest" href="/manifest.json">
+  <!-- crossorigin="use-credentials" обязателен: манифест запрашивается браузером БЕЗ
+       учётных данных (так по спецификации, даже для своего же домена), а сайт стоит за
+       Basic-авторизацией NPM → манифест отдавал 401, Chrome его не видел и предлагал
+       "Создать ярлык" вместо "Установить приложение". -->
+  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
   <meta name="theme-color" content="#faf9f6">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
